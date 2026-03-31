@@ -48,8 +48,64 @@ export default function ProductPage() {
     description: prod[`description${languageKey}` as keyof Product] as string,
   });
 
+  // Génération du JSON-LD pour le SEO (Rich Snippets Google)
+  const jsonLd = product ? {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": getLocalizedData(product).title,
+    "image": [
+      product.imageUrl1,
+      product.imageUrl2
+    ].filter(Boolean),
+    "description": getLocalizedData(product).description,
+    "sku": product.id,
+    "mpn": product.id,
+    "brand": {
+      "@type": "Brand",
+      "name": "L'Arche des Jeux"
+    },
+    "offers": {
+      "@type": "Offer",
+      "url": window.location.href,
+      "priceCurrency": "EUR",
+      "price": product.price,
+      "itemCondition": "https://schema.org/NewCondition",
+      "availability": parseInt(product.quantityInStock) > 0 
+        ? "https://schema.org/InStock" 
+        : "https://schema.org/OutOfStock",
+      "priceValidUntil": new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
+    },
+    ...(reviewsData?.stats?.totalReviews > 0 ? {
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": reviewsData.stats.averageRating,
+        "reviewCount": reviewsData.stats.totalReviews
+      }
+    } : {}),
+    ...(reviewsData?.reviews?.length > 0 ? {
+      "review": reviewsData.reviews.slice(0, 5).map((r: any) => ({
+        "@type": "Review",
+        "reviewRating": {
+          "@type": "Rating",
+          "ratingValue": r.rating,
+          "bestRating": "5"
+        },
+        "author": {
+          "@type": "Person",
+          "name": r.userName
+        },
+        "datePublished": r.createdAt
+      }))
+    } : {})
+  } : null;
+
   return (
     <div className="min-h-screen flex flex-col">
+      {jsonLd && (
+        <script type="application/ld+json">
+          {JSON.stringify(jsonLd)}
+        </script>
+      )}
       <Navbar />
 
       <main className="flex-1 py-8">
