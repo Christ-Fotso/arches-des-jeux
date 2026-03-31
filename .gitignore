@@ -1,0 +1,28 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Environment variables (CRITICAL SECURITY)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Uploads and user-generated content
+uploads/
+*.log
+
+# Docker secrets (CRITICAL)
+secrets/*.txt
+!secrets/README.md
+!secrets/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db

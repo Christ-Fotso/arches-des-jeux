@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    secrets:
+      - db_password
+    environment:
+      POSTGRES_USER: arches_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: arches_des_jeux
+    # Port PostgreSQL NON exposé pour sécurité (connexion uniquement via réseau Docker interne)
+    # ports:
+    #   - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U arches_user" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  app:
+    build:
+      context: .
+      args:
+        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
+    ports:
+      - "5000:5000"
+    secrets:
+      - jwt_secret
+      - stripe_secret
+      - stripe_publishable
+      - db_password
+      - session_secret
+      - stripe_webhook_secret
+      - shippo_private_key
+      - resend_api_key
+      - admin_email
+      - admin_password
+      - node_env
+      - port
+      - vite_api_url
+      - database_url
+    env_file: .env
+    environment:
+      # Variables d'environnement
+      NODE_ENV: production
+      POSTGRES_USER: arches_user
+      POSTGRES_DB: arches_des_jeux
+      DATABASE_URL: postgresql://arches_user:beaute_pass@postgres:5432/arches_des_jeux
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5000}
+      # Les secrets sont aussi lus depuis /run/secrets/ dans l'application
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./attached_assets:/app/attached_assets:ro
+      - ./uploads:/app/uploads
+    networks:
+      - backend
+
+# Définition des secrets Docker
+secrets:
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  db_password:
+    file: ./secrets/db_password.txt
+  stripe_secret:
+    file: ./secrets/stripe_secret.txt
+  stripe_publishable:
+    file: ./secrets/stripe_publishable.txt
+  session_secret:
+    file: ./secrets/session_secret.txt
+  stripe_webhook_secret:
+    file: ./secrets/stripe_webhook_secret.txt
+  shippo_private_key:
+    file: ./secrets/shippo_private_key.txt
+  resend_api_key:
+    file: ./secrets/resend_api_key.txt
+  admin_email:
+    file: ./secrets/admin_email.txt
+  admin_password:
+    file: ./secrets/admin_password.txt
+  node_env:
+    file: ./secrets/node_env.txt
+  port:
+    file: ./secrets/port.txt
+  vite_api_url:
+    file: ./secrets/vite_api_url.txt
+  database_url:
+    file: ./secrets/database_url.txt
+
+volumes:
+  postgres_data:
+
+
+networks:
+  backend:
+    driver: bridge

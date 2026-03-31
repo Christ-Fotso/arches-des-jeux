@@ -1,0 +1,156 @@
+Partie 1 : Cahier des Charges - Application E-commerce "Beauté Suisse"
+1. Présentation Générale du Projet
+Nom du projet : Beauté Suisse (à titre indicatif)
+Objectif : Création d'une application web e-commerce moderne, sécurisée et multilingue pour la vente de produits de beauté sur le marché suisse. L'accent sera mis sur une expérience utilisateur épurée et une gestion administrative simple et puissante.
+2. Étude de l'Existant et Positionnement
+Marché : Le marché suisse des cosmétiques en ligne est concurrentiel, avec des acteurs majeurs (p. ex., Marionnaud, Sephora.ch) et des marques de niche.
+Analyse concurrentielle : Les concurrents proposent souvent des catalogues très larges, mais peuvent avoir des interfaces surchargées. La livraison et le service client sont des différenciateurs clés.
+Positionnement visé : Notre application se distinguera par :
+Une interface minimaliste et élégante (design épuré blanc/jaune/noir).
+Une expérience utilisateur fluide et rapide, notamment sur mobile.
+Une mise en avant visuelle forte des produits (effet de survol).
+Une gestion transparente des délais de livraison via une API externe.
+3. Cibles
+Utilisateurs finaux : Consommateurs en Suisse (francophones, germanophones, anglophones) intéressés par les produits de beauté.
+Administrateurs : L'équipe interne chargée de la gestion du catalogue, des commandes et des promotions.
+4. Périmètre Fonctionnel (Liste des Pages et Fonctionnalités)
+A. Fonctionnalités Publiques / Visiteur
+Page d'Accueil :
+Affichage de l'ensemble du catalogue de produits sous forme de grille.
+Header avec logo, menu de navigation (Catégories, Support), sélecteur de langue, icône de recherche, lien de connexion/inscription et icône de panier.
+Footer avec liens vers les pages "Mentions Légales", "Copyright", et "Support".
+Pages Catégories (ex: "Produits Cheveux", "Soins du Visage") :
+Liste des produits appartenant à une catégorie spécifique.
+Possibilité de filtrer et trier les produits (à prévoir pour une V2).
+Page Fiche Produit :
+Affichage de l'image principale (image_1).
+Au survol de l'image, affichage de la seconde image (image_2).
+Titre du produit, description, prix.
+Sélecteur de quantité.
+Bouton "Ajouter au panier".
+Estimation du temps de livraison calculé via l'API (ex: La Poste).
+Fonction de Recherche :
+Barre de recherche dans le header.
+La recherche s'effectue sur le titre et la description des produits dans la langue sélectionnée.
+Affiche une page de résultats avec les produits correspondants.
+Page Support :
+Page statique avec un formulaire de contact (Nom, Email, Message) et/ou des informations de contact (FAQ, numéro de téléphone).
+Pages Statiques :
+Mentions Légales, Politique de confidentialité, Conditions Générales de Vente.
+B. Fonctionnalités Utilisateur Authentifié
+Gestion de Compte :
+Création de compte (Nom, Email, Mot de passe).
+Connexion / Déconnexion.
+Fonction "Mot de passe oublié" avec envoi d'un lien de réinitialisation par email.
+Espace "Mon Compte" pour voir l'historique des commandes et gérer ses informations personnelles.
+Panier d'Achat :
+Voir les produits ajoutés, modifier les quantités, supprimer un produit.
+Champ pour appliquer un code de réduction.
+Récapitulatif du total (sous-total, réduction, total).
+Processus de Paiement :
+Tunnel de paiement sécurisé.
+Saisie des informations de livraison et de facturation.
+Intégration d'une solution de paiement (Stripe, etc.).
+C. Interface d'Administration (Compte Admin)
+Dashboard Sécurisé :
+Accès via une page de login séparée ou avec un rôle spécifique.
+Vue d'ensemble des ventes, des nouveaux utilisateurs, etc.
+Gestion des Produits (CRUD - Create, Read, Update, Delete) :
+Ajouter un nouveau produit via un formulaire.
+Champs du formulaire :
+Titre (pour FR, DE, EN).
+Description (pour FR, DE, EN).
+Prix.
+Quantité en stock.
+Téléchargement de l'image principale (image_1) et de l'image de survol (image_2).
+Champ pour le texte alternatif de l'image (pour FR, DE, EN) pour l'accessibilité.
+Modifier ou supprimer un produit existant.
+Gestion des Promotions :
+Créer une réduction globale sur tout le site (en % ou en montant fixe).
+Créer une réduction sur un produit spécifique.
+Créer des codes de réduction personnalisés :
+Nom du code (ex: BIENVENUE10).
+Type (pourcentage ou montant fixe).
+Définir si le code est à usage unique ou multiple.
+Traçabilité : pouvoir associer un code à une commande pour analyse.
+5. Contraintes Techniques et Graphiques
+Backend Framework : Un framework Node.js sécurisé et structuré. NestJS est un excellent choix en raison de son architecture modulaire, de son utilisation de TypeScript qui renforce la robustesse, et de son écosystème mature pour la sécurité (intégration avec Passport.js pour JWT, validation de données avec class-validator). AdonisJS est également une très bonne alternative. Nous recommandons NestJS.
+Base de Données : PostgreSQL pour sa fiabilité et ses fonctionnalités avancées.
+Frontend Styling : Utilisation obligatoire de Tailwind CSS.
+Authentification : Sécurisée par des tokens JWT (JSON Web Tokens).
+Multilingue : La structure de la base de données et de l'API doit être conçue pour gérer facilement les contenus en français, allemand et anglais.
+API Externe : Intégration d'une API de livraison (ex: API de La Poste Suisse) pour estimer les délais.
+Palette de couleurs :
+Couleur dominante : Blanc (#FFFFFF ou un blanc cassé).
+Couleurs d'accentuation : Jaune (vif mais élégant) et Noir (pour le texte et les éléments de contraste).
+Partie 2 : Prompt pour Replit
+(Copiez-collez l'intégralité du texte ci-dessous dans l'interface de chat de Replit)
+code
+Prompt
+Agis en tant qu'un développeur full-stack expert. Ta mission est de générer la structure complète et le code de base pour une application e-commerce de vente de produits de beauté pour le marché suisse.
+
+Crée un fichier README.md détaillé à la racine du projet. Ce fichier doit inclure :
+- Une description du projet.
+- La stack technique utilisée.
+- Les instructions pour installer les dépendances (npm install).
+- Les instructions pour lancer le projet en mode développement.
+- La configuration des variables d'environnement (.env) nécessaires (base de données, secret JWT, etc.).
+
+*Stack Technique Obligatoire :*
+- *Backend :* NestJS (framework Node.js)
+- *Base de Données :* PostgreSQL (utilise TypeORM pour l'intégration avec NestJS)
+- *Styling Frontend :* Tailwind CSS
+- *Authentification :* JSON Web Tokens (JWT) avec Passport.js
+
+*Structure du Projet :*
+Crée une structure de projet claire, avec des modules NestJS distincts pour chaque domaine fonctionnel (ex: auth, users, products, orders, promotions).
+
+*Fonctionnalités à Déployer :*
+
+*1. Module d'Authentification (Auth) et Utilisateurs (Users) :*
+   - Endpoints pour la création de compte (/auth/register), la connexion (/auth/login).
+   - La connexion doit retourner un token JWT.
+   - Protection des routes sensibles via un AuthGuard.
+   - Logique pour la fonctionnalité "mot de passe oublié".
+   - Entité User avec les champs : id, email, password (hashé), name, role (USER ou ADMIN).
+
+*2. Module Produits (Products) :*
+   - Entité Product avec les champs suivants, conçus pour le multilingue :
+     - id, price, quantity_in_stock
+     - title_fr, title_de, title_en
+     - description_fr, description_de, description_en
+     - image_url_1, image_url_2
+     - alt_text_fr, alt_text_de, alt_text_en
+   - CRUD complet pour les produits, accessible uniquement par le rôle ADMIN.
+   - Endpoint public pour lister tous les produits.
+   - Endpoint public pour récupérer un produit par son ID.
+   - Endpoint de recherche (/products/search?q=...) qui recherche dans les titres et descriptions.
+
+*3. Module Promotions (Promotions) :*
+   - Entité DiscountCode avec : id, code (ex: "SUMMER20"), type ('PERCENTAGE' ou 'FIXED'), value, is_single_use, is_active.
+   - CRUD pour les codes de réduction, accessible uniquement par le rôle ADMIN.
+   - Service pour valider un code de réduction et calculer le prix final dans le panier.
+
+*4. Interface d'Administration (Fonctionnalités Admin) :*
+   - Crée des routes protégées par un AdminGuard.
+   - Implémente les endpoints pour la gestion manuelle des produits (création, mise à jour). Prévois la logique pour le chargement des images (ex: vers un service de stockage cloud ou un dossier local).
+
+*5. Pages Frontend de Base (Templates EJS ou Nunjucks simples) :*
+   - *home.ejs :* Page d'accueil affichant la grille de tous les produits.
+   - *product-detail.ejs :* Page de détail d'un produit. Implémente l'effet de survol en JavaScript : lorsque la souris passe sur l'image, l'attribut src de la balise <img> bascule entre image_url_1 et image_url_2.
+   - *login.ejs / register.ejs :* Formulaires d'authentification.
+   - *admin/dashboard.ejs :* Une page de base pour l'admin.
+   - *admin/product-form.ejs :* Formulaire pour ajouter/modifier un produit avec tous les champs requis, y compris les champs de texte pour les 3 langues et les champs de téléversement d'images.
+   - *support.ejs :* Page de support statique.
+   - *legal.ejs :* Page de mentions légales statique.
+
+*Design et CSS :*
+- Configure Tailwind CSS pour fonctionner avec le moteur de templates.
+- Utilise une palette de couleurs stricte : fond *blanc, texte **noir, et éléments d'accentuation (boutons, liens) en **jaune*.
+- Le design doit être minimaliste, épuré et centré sur les produits.
+
+*Base de Données :*
+- Génère les entités TypeORM pour User, Product, et DiscountCode correspondant aux descriptions ci-dessus.
+- Prépare les fichiers de configuration pour la connexion à une base de données PostgreSQL.
+
+Génère le code de base pour chaque fonctionnalité, y compris les contrôleurs, services, et entités côté backend, ainsi que les templates de base pour les pages côté frontend avec les classes Tailwind CSS appropriées. Assure-toi que le code est propre, commenté et suit les meilleures pratiques de NestJS.

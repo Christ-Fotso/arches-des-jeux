@@ -1,0 +1,102 @@
+⚙️ ÉTAPE 2 — Récupère tes clés API Stripe
+
+Va dans :
+Dashboard → Developers → API keys
+
+Tu verras deux types de clés :
+
+clé publique (pk_live_... ou pk_test_...) → utilisée côté frontend
+
+clé secrète (sk_live_... ou sk_test_...) → utilisée côté backend
+
+💡 Important :
+
+Utilise d’abord les clés test pour le développement (pk_test_... / sk_test_...)
+
+Garde la clé secrète confidentielle (ne jamais la mettre dans le frontend)
+
+🧱 ÉTAPE 3 — Installe Stripe dans ton projet
+Si ton app est en JavaScript / Node.js / Next.js :
+npm install stripe
+
+Si ton frontend est en React :
+npm install @stripe/stripe-js
+npm install @stripe/react-stripe-js
+
+💳 ÉTAPE 4 — Crée une route backend pour créer une session de paiement
+
+Exemple Node.js / Express :
+
+import express from "express";
+import Stripe from "stripe";
+
+const app = express();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+app.post("/create-checkout-session", async (req, res) => {
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    mode: "payment",
+    line_items: [
+      {
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: "Huile capillaire NAPPY",
+          },
+          unit_amount: 2000, // 20.00 €
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: "https://tonsite.com/success",
+    cancel_url: "https://tonsite.com/cancel",
+  });
+
+  res.json({ url: session.url });
+});
+
+💻 ÉTAPE 5 — Redirige ton utilisateur vers la page de paiement
+
+Côté frontend (React, Next.js, etc.) :
+
+import { loadStripe } from "@stripe/stripe-js";
+
+const stripePromise = loadStripe("pk_test_...");
+
+async function handleCheckout() {
+  const response = await fetch("/create-checkout-session", { method: "POST" });
+  const { url } = await response.json();
+  window.location.href = url;
+}
+
+
+🟢 Cela ouvrira la page sécurisée Stripe Checkout, où ton client pourra payer.
+
+✅ ÉTAPE 6 — Tester les paiements
+
+Utilise les cartes de test Stripe :
+
+Numéro de carte test : 4242 4242 4242 4242
+
+Date : n’importe quelle future (ex. 12/34)
+
+CVC : n’importe quel nombre à 3 chiffres
+
+Code postal : n’importe lequel
+
+Stripe simule alors un paiement réussi sans argent réel.
+
+💰 ÉTAPE 7 — Passer en “live”
+
+Quand tout fonctionne :
+
+Active ton compte Stripe
+
+Remplace les clés *_test_* par *_live_*
+
+Mets à jour les URLs (https://tonsite.com
+)
+
+Souhaites-tu que je t’aide à intégrer Stripe étape par étape dans ton code (par exemple Next.js, React, ou Flutter selon ton app) ?
+Je peux te générer le code prêt à coller avec ta clé Stripe test.

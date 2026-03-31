@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    secrets:
+      - db_password
+    environment:
+      POSTGRES_USER: beaute
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: beaute_suisse
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beaute"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      args:
+        VITE_STRIPE_PUBLISHABLE_KEY_FILE: /run/secrets/stripe_publishable
+    ports:
+      - "5000:5000"
+    secrets:
+      - jwt_secret
+      - stripe_secret
+      - stripe_publishable
+      - db_password
+      - email_password
+    environment:
+      # Application
+      NODE_ENV: production
+      PORT: 5000
+      FRONTEND_URL: https://votre-domaine.com
+      
+      # Database
+      POSTGRES_USER: beaute
+      POSTGRES_DB: beaute_suisse
+      DATABASE_URL: postgresql://beaute@postgres:5432/beaute_suisse
+      
+      # Email Configuration
+      EMAIL_HOST: smtp.gmail.com
+      EMAIL_PORT: 587
+      EMAIL_USER: djechefotsochristarole@gmail.com
+      EMAIL_FROM: BeautyShop <noreply@beautyshop.com>
+      
+      # Shippo (optionnel)
+      # SHIPPO_PRIVATE_KEY: votre_cle_shippo
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+      - ./attached_assets:/app/attached_assets:ro
+    networks:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/products"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Secrets Docker pour la production
+secrets:
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  db_password:
+    file: ./secrets/db_password.txt
+  stripe_secret:
+    file: ./secrets/stripe_secret.txt
+  stripe_publishable:
+    file: ./secrets/stripe_publishable.txt
+  email_password:
+    file: ./secrets/email_password.txt
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
