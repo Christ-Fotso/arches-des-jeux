@@ -923,17 +923,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
 
           if (!addressExists) {
-              await shippingAddressService.createAddress(req.user!.userId, {
-                firstName: shippingAddress.firstName,
-                lastName: shippingAddress.lastName,
-                address: shippingAddress.address,
-                addressLine2: shippingAddress.addressLine2 || null,
-                city: shippingAddress.city,
-                postalCode: shippingAddress.postalCode,
-                country: shippingAddress.country || "FR",
-                isDefault: existingAddresses.length === 0,
-              });
-              console.log('✅ Adresse sauvegardée pour la prochaine commande');
+            await shippingAddressService.createAddress(req.user!.userId, {
+              firstName: shippingAddress.firstName,
+              lastName: shippingAddress.lastName,
+              address: shippingAddress.address,
+              addressLine2: shippingAddress.addressLine2 || null,
+              city: shippingAddress.city,
+              postalCode: shippingAddress.postalCode,
+              country: shippingAddress.country || "FR",
+              isDefault: existingAddresses.length === 0,
+            });
+            console.log('✅ Adresse sauvegardée pour la prochaine commande');
           }
         } catch (saveError) {
           console.error('⚠️ Erreur sauvegarde adresse:', saveError);
@@ -944,7 +944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Envoi de l'email de confirmation
       let emailAddress = guestEmail;
       let userName = guestEmail;
-      
+
       if (!isGuest && req.user) {
         const user = await userRepo.findById(req.user.userId);
         if (user) {
@@ -952,9 +952,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userName = user.firstName || user.name;
         }
       }
-      
+
       if (emailAddress) {
-         await emailService.sendOrderConfirmationEmail(order, emailAddress, userName);
+        await emailService.sendOrderConfirmationEmail(order, emailAddress, userName);
       }
 
       res.json({
@@ -1090,7 +1090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const allProducts = await productRepo.findAll();
       const baseUrl = process.env.FRONTEND_URL || "https://arches-des-jeux.com";
-      
+
       let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
@@ -1124,7 +1124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       xml += "\n</urlset>";
-      
+
       res.header("Content-Type", "application/xml");
       res.send(xml);
     } catch (error) {

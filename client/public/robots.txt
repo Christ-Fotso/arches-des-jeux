@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://arches-des-jeux.com/sitemap.xml
+Sitemap: https://larchedesjeux.com/sitemap.xml
