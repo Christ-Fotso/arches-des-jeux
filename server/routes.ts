@@ -1135,6 +1135,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Flux Google Merchant Center pour Google Shopping
+  app.get("/api/products/google-feed", async (_req, res) => {
+    try {
+      const allProducts = await productRepo.findAll();
+      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.com";
+      if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
+      baseUrl = baseUrl.replace(/\/$/, "");
+
+      let xml = `<?xml version="1.0"?>
+<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
+  <channel>
+    <title>L'Arche des Jeux</title>
+    <link>${baseUrl}</link>
+    <description>Jeux chrétiens, bibliques et catholiques pour toute la famille</description>`;
+
+      for (const product of allProducts) {
+        const title = product.titleFr || product.titleEn;
+        const description = product.descriptionFr || product.descriptionEn;
+        const isOutOfStock = parseInt(product.quantityInStock) <= 0;
+
+        xml += `
+    <item>
+      <g:id>${product.id}</g:id>
+      <g:title><![CDATA[${title}]]></g:title>
+      <g:description><![CDATA[${description}]]></g:description>
+      <g:link>${baseUrl}/product/${product.id}</g:link>
+      <g:image_link>${product.imageUrl1.startsWith('http') ? product.imageUrl1 : baseUrl + product.imageUrl1}</g:image_link>
+      <g:condition>new</g:condition>
+      <g:availability>${isOutOfStock ? "out_of_stock" : "in_stock"}</g:availability>
+      <g:price>${parseFloat(product.price).toFixed(2)} EUR</g:price>
+      <g:brand>L'Arche des Jeux</g:brand>
+    </item>`;
+      }
+
+      xml += `
+  </channel>
+</rss>`;
+
+      res.header("Content-Type", "application/xml");
+      res.send(xml);
+    } catch (error) {
+      console.error("Google Feed error:", error);
+      res.status(500).end();
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
