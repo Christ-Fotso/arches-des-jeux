@@ -26,8 +26,8 @@ const translations = {
     "nav.admin": "Administration",
 
     // Home
-    "home.title": "L'Arche des Jeux",
-    "home.subtitle": "Jeux chrétiens, bibliques et catholiques pour toute la famille",
+    "home.title": "L'Arche des Jeux - C'est quoi le verset ?",
+    "home.subtitle": "Apprenez chaque verset de la Bible en famille avec nos jeux chrétiens",
     "home.cta": "Voir le jeu",
 
     // 404 Not Found
@@ -255,8 +255,8 @@ const translations = {
     "nav.admin": "Admin",
 
     // Home
-    "home.title": "The Ark of Games",
-    "home.subtitle": "Christian, Biblical and Catholic games for the whole family",
+    "home.title": "The Ark of Games - C'est quoi le verset ?",
+    "home.subtitle": "Learn every Bible verse with your family through our Christian games",
     "home.cta": "Explore the game",
 
     // 404 Not Found
