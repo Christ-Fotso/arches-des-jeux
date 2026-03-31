@@ -1089,8 +1089,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/sitemap.xml", async (_req, res) => {
     try {
       const allProducts = await productRepo.findAll();
-      const baseUrl = process.env.FRONTEND_URL || "https://arches-des-jeux.com";
-
+      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.com";
+      if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
+      baseUrl = baseUrl.replace(/\/$/, ""); 
+      
       let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
