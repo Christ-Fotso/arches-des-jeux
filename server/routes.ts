@@ -93,6 +93,19 @@ const reviewService = new ReviewService(reviewRepo, productRepo);
 const shippingAddressService = new ShippingAddressService(shippingAddressRepo);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Redirections SEO pour les anciennes URLs (Migration Shopify/Autre)
+  app.get("/pages/a-propos-de-nous*", (_req, res) => res.redirect(301, "/about"));
+  app.get("/collections/frontpage", (_req, res) => res.redirect(301, "/products"));
+  app.get("/products/cest-quoi-le-verset", async (_req, res) => {
+    try {
+      const all = await productRepo.findAll();
+      const target = all.find(p => p.titleFr?.includes("verset") || p.titleEn?.includes("verse"));
+      if (target) return res.redirect(301, `/product/${target.id}`);
+      res.redirect(301, "/products");
+    } catch {
+      res.redirect(301, "/products");
+    }
+  });
 
   // Schéma de validation pour les items de commande
   const createOrderItemsSchema = z.object({
