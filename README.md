@@ -11,7 +11,7 @@ Architecture **Node.js / Express** côté serveur + **React / Vite** côté clie
 
 | Domaine | Fonctionnalités |
 |---|---|
-| **SEO Optime** | Meta tags, Sitemap dynamique, robots.txt pour une visibilité maximale |
+| **SEO Optime** | Meta tags, Sitemap dynamique, robots.txt, Flux Google Merchant |
 | **Boutique** | Catalogue de jeux, recherche avancée, filtres par thématique |
 | **Panier & Paiement** | Paiement sécurisé **Stripe**, gestion multi-devises (EUR, CHF, USD, GBP) |
 | **Codes Promo** | Système de réductions (pourcentage/fixe) avec bannière défilante en temps réel |
@@ -46,6 +46,7 @@ cp .env.example .env
 - [ ] `npm run db:push` exécuté pour les nouveaux champs de codes promo.
 - [ ] SEO vérifié (Meta tags, Sitemap, robots.txt).
 - [ ] Sitemap déclaré dans la Search Console.
+- [ ] Flux Google Merchant configuré (`/api/products/google-feed`).
 
 # 5. Lancer en mode développement
 npm run dev
