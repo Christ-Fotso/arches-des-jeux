@@ -11,7 +11,7 @@ Architecture **Node.js / Express** côté serveur + **React / Vite** côté clie
 
 | Domaine | Fonctionnalités |
 |---|---|
-| **SEO Optimisé** | Référencement ciblé : jeux chrétiens, bibliques, catholiques, spiritualité |
+| **SEO Optime** | Meta tags, Sitemap dynamique, robots.txt pour une visibilité maximale |
 | **Boutique** | Catalogue de jeux, recherche avancée, filtres par thématique |
 | **Panier & Paiement** | Paiement sécurisé **Stripe**, gestion multi-devises (EUR, CHF, USD, GBP) |
 | **Codes Promo** | Système de réductions (pourcentage/fixe) avec bannière défilante en temps réel |
@@ -43,7 +43,9 @@ npm install
 cp .env.example .env
 
 # 4. Pousser le schéma en base de données
-npm run db:push
+- [ ] `npm run db:push` exécuté pour les nouveaux champs de codes promo.
+- [ ] SEO vérifié (Meta tags, Sitemap, robots.txt).
+- [ ] Sitemap déclaré dans la Search Console.
 
 # 5. Lancer en mode développement
 npm run dev

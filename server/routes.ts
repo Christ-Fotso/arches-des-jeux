@@ -1085,6 +1085,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sitemap.xml dynamique pour le SEO
+  app.get("/sitemap.xml", async (_req, res) => {
+    try {
+      const allProducts = await productRepo.findAll();
+      const baseUrl = process.env.FRONTEND_URL || "https://arches-des-jeux.com";
+      
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/products</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/support</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>`;
+
+      for (const product of allProducts) {
+        xml += `
+  <url>
+    <loc>${baseUrl}/product/${product.id}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`;
+      }
+
+      xml += "\n</urlset>";
+      
+      res.header("Content-Type", "application/xml");
+      res.send(xml);
+    } catch (error) {
+      console.error("Sitemap error:", error);
+      res.status(500).end();
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
