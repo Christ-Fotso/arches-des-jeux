@@ -188,6 +188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <g:availability>${isOutOfStock ? "out_of_stock" : "in_stock"}</g:availability>
       <g:price>${parseFloat(product.price).toFixed(2)} EUR</g:price>
       <g:brand>L'Arche des Jeux</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
     </item>`;
       }
 
