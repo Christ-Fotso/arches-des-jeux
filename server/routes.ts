@@ -107,6 +107,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sitemap.xml dynamique pour le SEO
+  app.get("/sitemap.xml", async (_req, res) => {
+    try {
+      const allProducts = await productRepo.findAll();
+      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.com";
+      if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
+      baseUrl = baseUrl.replace(/\/$/, ""); 
+      
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/products</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/support</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>`;
+
+      for (const product of allProducts) {
+        xml += `
+  <url>
+    <loc>${baseUrl}/product/${product.id}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`;
+      }
+
+      xml += "\n</urlset>";
+
+      res.header("Content-Type", "application/xml");
+      res.send(xml);
+    } catch (error) {
+      console.error("Sitemap error:", error);
+      res.status(500).end();
+    }
+  });
+
+  // Flux Google Merchant Center pour Google Shopping
+  app.get("/api/products/google-feed", async (_req, res) => {
+    try {
+      const allProducts = await productRepo.findAll();
+      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.com";
+      if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
+      baseUrl = baseUrl.replace(/\/$/, "");
+
+      let xml = `<?xml version="1.0"?>
+<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
+  <channel>
+    <title>L'Arche des Jeux</title>
+    <link>${baseUrl}</link>
+    <description>Jeux chrétiens, bibliques et catholiques pour toute la famille</description>`;
+
+      for (const product of allProducts) {
+        const title = product.titleFr || product.titleEn;
+        const description = product.descriptionFr || product.descriptionEn;
+        const isOutOfStock = parseInt(product.quantityInStock) <= 0;
+
+        xml += `
+    <item>
+      <g:id>${product.id}</g:id>
+      <g:title><![CDATA[${title}]]></g:title>
+      <g:description><![CDATA[${description}]]></g:description>
+      <g:link>${baseUrl}/product/${product.id}</g:link>
+      <g:image_link>${product.imageUrl1.startsWith('http') ? product.imageUrl1 : baseUrl + product.imageUrl1}</g:image_link>
+      <g:condition>new</g:condition>
+      <g:availability>${isOutOfStock ? "out_of_stock" : "in_stock"}</g:availability>
+      <g:price>${parseFloat(product.price).toFixed(2)} EUR</g:price>
+      <g:brand>L'Arche des Jeux</g:brand>
+    </item>`;
+      }
+
+      xml += `
+  </channel>
+</rss>`;
+
+      res.header("Content-Type", "application/xml");
+      res.send(xml);
+    } catch (error) {
+      console.error("Google Feed error:", error);
+      res.status(500).end();
+    }
+  });
+
   // Schéma de validation pour les items de commande
   const createOrderItemsSchema = z.object({
     items: z.array(z.object({
@@ -1095,102 +1191,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedMessage);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Sitemap.xml dynamique pour le SEO
-  app.get("/sitemap.xml", async (_req, res) => {
-    try {
-      const allProducts = await productRepo.findAll();
-      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.com";
-      if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
-      baseUrl = baseUrl.replace(/\/$/, ""); 
-      
-      let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${baseUrl}/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/products</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/about</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/support</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>`;
-
-      for (const product of allProducts) {
-        xml += `
-  <url>
-    <loc>${baseUrl}/product/${product.id}</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>`;
-      }
-
-      xml += "\n</urlset>";
-
-      res.header("Content-Type", "application/xml");
-      res.send(xml);
-    } catch (error) {
-      console.error("Sitemap error:", error);
-      res.status(500).end();
-    }
-  });
-
-  // Flux Google Merchant Center pour Google Shopping
-  app.get("/api/products/google-feed", async (_req, res) => {
-    try {
-      const allProducts = await productRepo.findAll();
-      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.com";
-      if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
-      baseUrl = baseUrl.replace(/\/$/, "");
-
-      let xml = `<?xml version="1.0"?>
-<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
-  <channel>
-    <title>L'Arche des Jeux</title>
-    <link>${baseUrl}</link>
-    <description>Jeux chrétiens, bibliques et catholiques pour toute la famille</description>`;
-
-      for (const product of allProducts) {
-        const title = product.titleFr || product.titleEn;
-        const description = product.descriptionFr || product.descriptionEn;
-        const isOutOfStock = parseInt(product.quantityInStock) <= 0;
-
-        xml += `
-    <item>
-      <g:id>${product.id}</g:id>
-      <g:title><![CDATA[${title}]]></g:title>
-      <g:description><![CDATA[${description}]]></g:description>
-      <g:link>${baseUrl}/product/${product.id}</g:link>
-      <g:image_link>${product.imageUrl1.startsWith('http') ? product.imageUrl1 : baseUrl + product.imageUrl1}</g:image_link>
-      <g:condition>new</g:condition>
-      <g:availability>${isOutOfStock ? "out_of_stock" : "in_stock"}</g:availability>
-      <g:price>${parseFloat(product.price).toFixed(2)} EUR</g:price>
-      <g:brand>L'Arche des Jeux</g:brand>
-    </item>`;
-      }
-
-      xml += `
-  </channel>
-</rss>`;
-
-      res.header("Content-Type", "application/xml");
-      res.send(xml);
-    } catch (error) {
-      console.error("Google Feed error:", error);
-      res.status(500).end();
     }
   });
 
