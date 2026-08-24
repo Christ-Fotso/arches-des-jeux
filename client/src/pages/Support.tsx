@@ -64,7 +64,7 @@ export default function Support() {
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">{t("support.email")}</p>
-                  <p className="font-medium">contact@larchedesjeux.com</p>
+                  <p className="font-medium">contact@larchedesjeux.fr</p>
                 </div>
 
                 <div>

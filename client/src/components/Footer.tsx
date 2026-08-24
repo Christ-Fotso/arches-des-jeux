@@ -49,7 +49,7 @@ export default function Footer() {
             <h4 className="font-semibold mb-4 text-primary">{t("footer.contact")}</h4>
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                {t("footer.email")}: <a href="mailto:contact@larchedesjeux.com" className="hover:text-primary transition-colors">contact@larchedesjeux.com</a>
+                {t("footer.email")}: <a href="mailto:contact@larchedesjeux.fr" className="hover:text-primary transition-colors">contact@larchedesjeux.fr</a>
               </p>
             </div>
             <div className="flex items-center gap-4 mt-4">

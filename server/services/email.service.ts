@@ -7,7 +7,7 @@ class EmailService {
   private fromEmail: string;
 
   constructor() {
-    this.fromEmail = "L'Arche des jeux <contact@larchedesjeux.com>";
+    this.fromEmail = "L'Arche des jeux <contact@larchedesjeux.fr>";
     this.initializeResend();
   }
 
@@ -306,7 +306,7 @@ class EmailService {
 
     try {
       const { error } = await this.resend.emails.send({
-        from: 'L\'Arche des jeux <support@larchedesjeux.com>', // Utilisation explicite de support@
+        from: 'L\'Arche des jeux <support@larchedesjeux.fr>', // Utilisation explicite de support@
         to: toEmail,
         bcc: 'Larchedesjeux@gmail.com', // Copie à l'admin
         subject: `Re: Votre demande de support chez L'Arche des jeux`,

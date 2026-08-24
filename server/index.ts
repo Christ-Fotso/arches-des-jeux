@@ -11,6 +11,7 @@ import {
 } from "./middleware/security.middleware";
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Désactiver les logs en production (SÉCURITÉ)
 disableLogsInProduction();

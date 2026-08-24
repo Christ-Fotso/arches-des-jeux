@@ -111,7 +111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/sitemap.xml", async (_req, res) => {
     try {
       const allProducts = await productRepo.findAll();
-      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.com";
+      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.fr";
       if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
       baseUrl = baseUrl.replace(/\/$/, ""); 
       
@@ -161,7 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/products/google-feed", async (_req, res) => {
     try {
       const allProducts = await productRepo.findAll();
-      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.com";
+      let baseUrl = process.env.FRONTEND_URL || "https://larchedesjeux.fr";
       if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
       baseUrl = baseUrl.replace(/\/$/, "");
 

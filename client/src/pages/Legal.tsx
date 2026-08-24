@@ -29,7 +29,7 @@ export default function Legal() {
                   <strong>{t("legal.address")}:</strong> 123 Rue de Rivoli, 75001 Paris, France
                 </p>
                 <p>
-                  <strong>{t("support.email")}:</strong> contact@larchedesjeux.com
+                  <strong>{t("support.email")}:</strong> contact@larchedesjeux.fr
                 </p>
 
               </CardContent>
