@@ -62,7 +62,6 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            # Attention: Modifiez ce chemin pour correspondre au dossier de l'app sur votre VPS
-            cd /var/www/arches-des-jeux
+            cd ~/arches-app
             docker-compose pull
             docker-compose up -d
