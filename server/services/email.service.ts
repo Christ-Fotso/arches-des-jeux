@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 import fs from 'fs';
-import type { Order, User } from '@shared/schema';
+import type { Order, OrderItem, User } from '@shared/schema';
 
 class EmailService {
   private resend: Resend | null = null;
@@ -88,51 +88,104 @@ class EmailService {
   }
 
   /**
-   * Envoie un email de confirmation de commande
+   * Envoie un email de confirmation de commande (client)
    */
-  async sendOrderConfirmationEmail(order: Order, email: string, name: string): Promise<boolean> {
+  async sendOrderConfirmationEmail(
+    order: Order,
+    email: string,
+    name: string,
+    items: Array<OrderItem & { productTitle?: string }> = []
+  ): Promise<boolean> {
     if (!this.resend) {
       console.warn('Email service not available');
       return false;
     }
 
+    // Tableau des articles commandés
+    const itemsRows = items.length > 0
+      ? items.map(item => `
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 10px 8px;">${item.productTitle || `Article #${item.productId.substring(0, 8)}`}</td>
+          <td style="padding: 10px 8px; text-align: center;">${item.quantity}</td>
+          <td style="padding: 10px 8px; text-align: right;">${parseFloat(item.priceAtPurchase).toFixed(2)} €</td>
+          <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${(parseFloat(item.priceAtPurchase) * item.quantity).toFixed(2)} €</td>
+        </tr>
+      `).join('')
+      : `<tr><td colspan="4" style="padding: 10px; color: #999; text-align: center;">Détails non disponibles</td></tr>`;
+
+    // Adresse complète
+    const addressBlock = [
+      order.firstName && order.lastName ? `${order.firstName} ${order.lastName}` : '',
+      order.address || '',
+      order.addressLine2 || '',
+      order.postalCode && order.city ? `${order.postalCode} ${order.city}` : order.city || '',
+      order.country || '',
+    ].filter(Boolean).join('<br>');
+
     const htmlContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">Merci pour votre commande !</h2>
-        <p>Bonjour ${name},</p>
-        <p>Nous avons bien reçu votre commande et nous vous en remercions.</p>
-        
-        <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
-          <h3 style="margin-top: 0;">Détails de la commande</h3>
-          <p><strong>Numéro de commande :</strong> #${order.id.substring(0, 8)}</p>
-          <p><strong>Montant total :</strong> ${order.totalAmount} CHF</p>
-          <p><strong>Statut :</strong> ${this.getStatusLabel(order.status)}</p>
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+
+        <div style="background-color: #1a1a1a; color: #fff; padding: 28px 24px;">
+          <h2 style="margin: 0; font-size: 22px;">✅ Merci pour votre commande !</h2>
+          <p style="margin: 8px 0 0; color: #aaa; font-size: 14px;">Commande #${order.id.substring(0, 8)} &mdash; ${this.getStatusLabel(order.status)}</p>
         </div>
 
-        ${order.address ? `
-        <div style="margin: 20px 0;">
-          <h3>Adresse de livraison</h3>
-          <p>
-            ${order.address}<br>
-            ${order.city ? order.city : ''}
-          </p>
-        </div>
-        ` : ''}
+        <div style="padding: 24px;">
 
-        <p>Vous recevrez un email dès l'expédition de votre colis.</p>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL || 'http://localhost:5000'}/my-orders" 
-             style="background-color: #000; color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Suivre ma commande
-          </a>
+          <p style="margin: 0 0 20px; font-size: 15px;">Bonjour <strong>${name}</strong>,</p>
+          <p style="margin: 0 0 24px; color: #555;">Nous avons bien reçu votre commande. Vous trouverez ci-dessous le récapitulatif de votre achat.</p>
+
+          <h3 style="margin: 0 0 12px; font-size: 15px; color: #333; border-bottom: 2px solid #1a1a1a; padding-bottom: 8px;">🧾 Articles commandés</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 24px;">
+            <thead>
+              <tr style="background-color: #f5f5f5;">
+                <th style="padding: 10px 8px; text-align: left; color: #555;">Produit</th>
+                <th style="padding: 10px 8px; text-align: center; color: #555;">Qté</th>
+                <th style="padding: 10px 8px; text-align: right; color: #555;">Prix unit.</th>
+                <th style="padding: 10px 8px; text-align: right; color: #555;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsRows}
+            </tbody>
+            <tfoot>
+              ${order.discountAmount && parseFloat(order.discountAmount) > 0 ? `
+              <tr>
+                <td colspan="3" style="padding: 10px 8px; text-align: right; color: #28a745;">Remise :</td>
+                <td style="padding: 10px 8px; text-align: right; color: #28a745;">-${parseFloat(order.discountAmount).toFixed(2)} €</td>
+              </tr>` : ''}
+              ${order.shippingCost ? `
+              <tr>
+                <td colspan="3" style="padding: 10px 8px; text-align: right; color: #666;">Frais de livraison${order.shippingCarrier ? ` (${order.shippingCarrier})` : ''} :</td>
+                <td style="padding: 10px 8px; text-align: right; color: #666;">${parseFloat(order.shippingCost).toFixed(2)} €</td>
+              </tr>` : ''}
+              <tr style="background-color: #1a1a1a; color: #fff;">
+                <td colspan="3" style="padding: 12px 8px; text-align: right; font-weight: bold;">TOTAL :</td>
+                <td style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 16px;">${parseFloat(order.totalAmount).toFixed(2)} €</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          ${addressBlock ? `
+          <div style="background-color: #f9f9f9; border-radius: 6px; padding: 16px; margin-bottom: 24px;">
+            <h3 style="margin: 0 0 10px; font-size: 15px; color: #333;">📦 Adresse de livraison</h3>
+            <p style="margin: 0; line-height: 1.8; color: #555;">${addressBlock}</p>
+          </div>` : ''}
+
+          <p style="color: #555; font-size: 14px;">Vous recevrez un email dès que votre colis sera expédié.</p>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:5000'}/my-orders"
+               style="background-color: #1a1a1a; color: #fff; padding: 14px 36px; text-decoration: none; border-radius: 6px; display: inline-block; font-size: 15px;">
+              Suivre ma commande
+            </a>
+          </div>
+
         </div>
 
-        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-        <p style="color: #999; font-size: 12px;">
-          Cordialement,<br>
-          L'équipe L'Arche des jeux
-        </p>
+        <div style="background-color: #f5f5f5; padding: 16px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #e0e0e0;">
+          Cordialement &mdash; L'&eacute;quipe L'Arche des jeux
+        </div>
       </div>
     `;
 
@@ -142,8 +195,7 @@ class EmailService {
       const { data, error } = await this.resend.emails.send({
         from: this.fromEmail,
         to: email,
-        bcc: 'Larchedesjeux@gmail.com', // CC'ing the admin as requested
-        subject: `Confirmation de votre commande #${order.id.substring(0, 8)}`,
+        subject: `✅ Confirmation commande #${order.id.substring(0, 8)} — ${parseFloat(order.totalAmount).toFixed(2)} €`,
         html: htmlContent,
       });
 
@@ -156,6 +208,139 @@ class EmailService {
       return true;
     } catch (err) {
       console.error(`❌ [EmailService] Exception sending order confirmation to ${email}:`, err);
+      return false;
+    }
+  }
+
+  /**
+   * Envoie une notification à TOUS les admins avec tous les détails de la commande
+   */
+  async sendAdminOrderNotification(
+    order: Order,
+    items: Array<OrderItem & { productTitle?: string }>,
+    customerName: string,
+    customerEmail: string,
+    adminEmails: string[] = ['Larchedesjeux@gmail.com']
+  ): Promise<boolean> {
+    if (!this.resend) {
+      console.warn('Email service not available');
+      return false;
+    }
+
+    if (adminEmails.length === 0) {
+      console.warn('[EmailService] No admin emails to notify');
+      return false;
+    }
+
+    // Tableau des articles commandés
+    const itemsRows = items.map(item => `
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 10px 8px;">${item.productTitle || `Produit #${item.productId.substring(0, 8)}`}</td>
+        <td style="padding: 10px 8px; text-align: center;">${item.quantity}</td>
+        <td style="padding: 10px 8px; text-align: right;">${parseFloat(item.priceAtPurchase).toFixed(2)} €</td>
+        <td style="padding: 10px 8px; text-align: right; font-weight: bold;">${(parseFloat(item.priceAtPurchase) * item.quantity).toFixed(2)} €</td>
+      </tr>
+    `).join('');
+
+    // Adresse complète
+    const addressBlock = [
+      order.firstName && order.lastName ? `${order.firstName} ${order.lastName}` : '',
+      order.address || '',
+      order.addressLine2 || '',
+      order.postalCode && order.city ? `${order.postalCode} ${order.city}` : order.city || '',
+      order.country || '',
+    ].filter(Boolean).join('<br>');
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+        
+        <!-- En-tête -->
+        <div style="background-color: #1a1a1a; color: #fff; padding: 24px;">
+          <h2 style="margin: 0; font-size: 20px;">🛒 Nouvelle commande reçue !</h2>
+          <p style="margin: 8px 0 0; color: #aaa; font-size: 14px;">Commande #${order.id.substring(0, 8)}</p>
+        </div>
+
+        <div style="padding: 24px;">
+
+          <!-- Infos client -->
+          <div style="background-color: #f9f9f9; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 12px; font-size: 15px; color: #555;">👤 Client</h3>
+            <p style="margin: 4px 0;"><strong>Nom :</strong> ${customerName}</p>
+            <p style="margin: 4px 0;"><strong>Email :</strong> <a href="mailto:${customerEmail}">${customerEmail}</a></p>
+          </div>
+
+          <!-- Adresse de livraison -->
+          <div style="background-color: #f0f4ff; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+            <h3 style="margin: 0 0 12px; font-size: 15px; color: #555;">📦 Adresse de livraison</h3>
+            <p style="margin: 0; line-height: 1.8;">${addressBlock || '<em style="color:#999">Non renseignée</em>'}</p>
+            ${order.shippingCarrier ? `<p style="margin: 8px 0 0; font-size: 13px; color: #666;">Transporteur : <strong>${order.shippingCarrier}</strong> — ${order.shippingService || ''}</p>` : ''}
+          </div>
+
+          <!-- Articles commandés -->
+          <h3 style="margin: 0 0 12px; font-size: 15px; color: #555;">🧾 Articles commandés</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+              <tr style="background-color: #f5f5f5;">
+                <th style="padding: 10px 8px; text-align: left;">Produit</th>
+                <th style="padding: 10px 8px; text-align: center;">Qté</th>
+                <th style="padding: 10px 8px; text-align: right;">Prix unitaire</th>
+                <th style="padding: 10px 8px; text-align: right;">Sous-total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsRows}
+            </tbody>
+            <tfoot>
+              ${order.discountAmount && parseFloat(order.discountAmount) > 0 ? `
+              <tr>
+                <td colspan="3" style="padding: 10px 8px; text-align: right; color: #28a745;">Remise :</td>
+                <td style="padding: 10px 8px; text-align: right; color: #28a745;">-${parseFloat(order.discountAmount).toFixed(2)} €</td>
+              </tr>` : ''}
+              ${order.shippingCost ? `
+              <tr>
+                <td colspan="3" style="padding: 10px 8px; text-align: right; color: #666;">Frais de livraison :</td>
+                <td style="padding: 10px 8px; text-align: right; color: #666;">${parseFloat(order.shippingCost).toFixed(2)} €</td>
+              </tr>` : ''}
+              <tr style="background-color: #1a1a1a; color: #fff;">
+                <td colspan="3" style="padding: 12px 8px; text-align: right; font-weight: bold;">TOTAL :</td>
+                <td style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 16px;">${parseFloat(order.totalAmount).toFixed(2)} €</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <!-- Lien admin -->
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:5000'}/admin/orders"
+               style="background-color: #1a1a1a; color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+              Gérer les commandes
+            </a>
+          </div>
+
+        </div>
+
+        <div style="background-color: #f5f5f5; padding: 16px; text-align: center; font-size: 12px; color: #999;">
+          L'Arche des jeux — Notification automatique
+        </div>
+      </div>
+    `;
+
+    try {
+      const { data, error } = await this.resend.emails.send({
+        from: this.fromEmail,
+        to: adminEmails,
+        subject: `🛒 Nouvelle commande #${order.id.substring(0, 8)} — ${parseFloat(order.totalAmount).toFixed(2)} €`,
+        html: htmlContent,
+      });
+
+      if (error) {
+        console.error(`❌ [EmailService] Resend API Error (Admin notification):`, error);
+        return false;
+      }
+
+      console.log(`✅ [EmailService] Admin order notification sent to ${adminEmails.join(', ')} (ID: ${data?.id})`);
+      return true;
+    } catch (err) {
+      console.error(`❌ [EmailService] Exception sending admin notification:`, err);
       return false;
     }
   }

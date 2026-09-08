@@ -10,8 +10,8 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
       POSTGRES_DB: arches_des_jeux
     # Port PostgreSQL NON exposé pour sécurité (connexion uniquement via réseau Docker interne)
-    # ports:
-    #   - "5432:5432"
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

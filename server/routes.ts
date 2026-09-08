@@ -28,6 +28,9 @@ import { ShippingAddressService } from "./services/shipping-address.service";
 import { shippingService } from "./services/shipping.service";
 import { emailService } from "./services/email.service";
 import crypto from "crypto";
+import { db } from "./db";
+import { products, users as usersTable } from "@shared/schema";
+import { inArray, eq } from "drizzle-orm";
 
 
 // Lire la clé Stripe depuis Docker secret si disponible
@@ -1025,7 +1028,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!isGuest && !shippingAddressId && shippingAddress) {
         try {
           // Vérifier si cette adresse n'existe pas déjà
-          const existingAddresses = await shippingAddressService.getAddresses(req.user!.userId);
+          const existingAddresses = await shippingAddressService.getUserAddresses(req.user!.userId);
           const addressExists = existingAddresses.some((addr: any) =>
             addr.address === shippingAddress.address &&
             addr.city === shippingAddress.city &&
@@ -1063,8 +1066,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      console.log(`[Order API] Order created successfully: ${order.id}. isGuest: ${isGuest}, emailAddress: ${emailAddress}`);
+
+      // Récupérer les articles avec les titres des produits pour l'email admin
+      const productIds = items.map((i: any) => i.productId);
+      const productList = productIds.length > 0
+        ? await db.select({ id: products.id, title: products.titleFr }).from(products).where(inArray(products.id, productIds))
+        : [];
+
+      const itemsWithTitles = items.map((item: any) => ({
+        ...item,
+        productTitle: productList.find((p: any) => p.id === item.productId)?.title || undefined,
+      }));
+
+      // Récupérer tous les admins de la base de données
+      const adminUsers = await db
+        .select({ email: usersTable.email, name: usersTable.name })
+        .from(usersTable)
+        .where(eq(usersTable.role, 'ADMIN'));
+
+      // Fallback : si aucun admin en base, utiliser l'email par défaut
+      const adminEmails = adminUsers.length > 0
+        ? adminUsers.map((u: any) => u.email)
+        : ['Larchedesjeux@gmail.com'];
+
+      console.log(`[Routes] Sending admin notification to ${adminEmails.length} admin(s): ${adminEmails.join(', ')}`);
+
       if (emailAddress) {
-        await emailService.sendOrderConfirmationEmail(order, emailAddress, userName);
+        console.log(`[Order API] Sending emails... Customer: ${emailAddress}, Admins: ${adminEmails.join(', ')}`);
+        // Email de confirmation au client (avec détail des articles)
+        await emailService.sendOrderConfirmationEmail(order, emailAddress, userName, itemsWithTitles);
+        // Email de notification détaillé à TOUS les admins
+        await emailService.sendAdminOrderNotification(order, itemsWithTitles, userName || emailAddress, emailAddress, adminEmails);
+        console.log(`[Order API] Emails sent successfully`);
+      } else {
+        console.error(`[Order API] No email address to send to! emailAddress=${emailAddress}`);
       }
 
       res.json({
@@ -1072,6 +1108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderId: order.id,
       });
     } catch (error: any) {
+      console.error('[ORDER PROCESS ERROR]:', error);
       res.status(500).json({ error: error.message });
     }
   });
