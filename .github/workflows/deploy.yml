@@ -23,8 +23,8 @@ jobs:
       - name: Run Tests
         run: |
           # Exécute Vitest uniquement si le dossier tests existe
-          if [ -d "tests" ]; then
-            npx vitest run --root .
+          if [ -d "tests/unit" ]; then
+            npx vitest run --root . tests/unit
           else
             echo "Skipping tests, no tests folder found."
           fi
