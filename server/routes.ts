@@ -38,6 +38,16 @@ let stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeSecretPath = "/run/secrets/stripe_secret";
 if (fs.existsSync(stripeSecretPath)) {
   stripeSecretKey = fs.readFileSync(stripeSecretPath, "utf8").trim();
+} else if (fs.existsSync("/run/secrets/stripe_secret_key.txt")) {
+  stripeSecretKey = fs.readFileSync("/run/secrets/stripe_secret_key.txt", "utf8").trim();
+}
+
+let stripePublishableKey = process.env.VITE_STRIPE_PUBLISHABLE_KEY || "";
+const stripePublishablePath = "/run/secrets/stripe_publishable_key";
+if (fs.existsSync(stripePublishablePath)) {
+  stripePublishableKey = fs.readFileSync(stripePublishablePath, "utf8").trim();
+} else if (fs.existsSync("/run/secrets/stripe_publishable_key.txt")) {
+  stripePublishableKey = fs.readFileSync("/run/secrets/stripe_publishable_key.txt", "utf8").trim();
 }
 
 const stripe = new Stripe(stripeSecretKey!, {
@@ -96,6 +106,11 @@ const reviewService = new ReviewService(reviewRepo, productRepo);
 const shippingAddressService = new ShippingAddressService(shippingAddressRepo);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Config publique (ex: clé Stripe)
+  app.get("/api/config/stripe", (_req, res) => {
+    res.json({ publishableKey: stripePublishableKey });
+  });
+
   // Redirections SEO pour les anciennes URLs (Migration Shopify/Autre)
   app.get("/pages/a-propos-de-nous*", (_req, res) => res.redirect(301, "/about"));
   app.get("/collections/frontpage", (_req, res) => res.redirect(301, "/products"));

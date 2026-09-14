@@ -17,10 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Plus, MapPin } from "lucide-react";
-
-const stripePromise = loadStripe(
-  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "",
-);
+import type { Stripe } from "@stripe/stripe-js";
 
 interface ShippingAddress {
   id?: string;
@@ -67,6 +64,7 @@ export default function Checkout() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [showPayment, setShowPayment] = useState(false);
+  const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
 
   // Gestion des adresses
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
@@ -171,6 +169,22 @@ export default function Checkout() {
       setLoadingAddresses(false);
     }
   }, [user, cartItems, setLocation]);
+
+  // Fetch Stripe Publishable Key
+  useEffect(() => {
+    async function fetchStripeConfig() {
+      try {
+        const response = await apiRequest("GET", "/api/config/stripe");
+        const data = await response.json();
+        if (data.publishableKey) {
+          setStripePromise(loadStripe(data.publishableKey));
+        }
+      } catch (err) {
+        console.error("Failed to load Stripe config:", err);
+      }
+    }
+    fetchStripeConfig();
+  }, []);
 
   // Détection automatique de la devise selon l'adresse
   useEffect(() => {
@@ -762,7 +776,7 @@ export default function Checkout() {
                 {currentStep < 3 ? (
                   <p className="text-sm text-muted-foreground">Veuillez valider vos options de livraison pour procéder au paiement.</p>
                 ) : (
-                  clientSecret && (
+                  clientSecret && stripePromise && (
                     <Elements
                       key={clientSecret}
                       options={options}
