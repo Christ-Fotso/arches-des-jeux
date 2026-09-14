@@ -6,6 +6,7 @@ import ProductDetail from "@/components/ProductDetail";
 import Footer from "@/components/Footer";
 import SearchDialog from "@/components/SearchDialog";
 import ReviewDialog from "@/components/ReviewDialog";
+import ReviewCarousel from "@/components/ReviewCarousel";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,7 +33,7 @@ export default function ProductPage() {
     enabled: !!params?.id,
   });
 
-  const { data: reviewsData } = useQuery({
+  const { data: reviewsData } = useQuery<{ reviews: any[], stats: { averageRating: number, totalReviews: number } }>({
     queryKey: ["/api/reviews", params?.id],
     enabled: !!params?.id,
   });
@@ -70,7 +71,7 @@ export default function ProductPage() {
       "priceCurrency": "EUR",
       "price": product.price,
       "itemCondition": "https://schema.org/NewCondition",
-      "availability": parseInt(product.quantityInStock) > 0 
+      "availability": Number(product.quantityInStock) > 0 
         ? "https://schema.org/InStock" 
         : "https://schema.org/OutOfStock",
       "priceValidUntil": new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
@@ -132,79 +133,10 @@ export default function ProductPage() {
               }}
             />
 
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <CardTitle>{t("reviews.title")}</CardTitle>
-                    {reviewsData?.stats && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              className={`w-4 h-4 ${star <= Math.round(reviewsData.stats.averageRating)
-                                ? "fill-yellow-400 text-yellow-400"
-                                : "text-gray-300 dark:text-gray-600"
-                                }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-sm text-muted-foreground">
-                          {reviewsData.stats.averageRating.toFixed(1)} {t("reviews.basedOn")} {reviewsData.stats.totalReviews} {reviewsData.stats.totalReviews === 1 ? t("reviews.review") : t("reviews.reviews")}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {reviewsData?.reviews && reviewsData.reviews.length > 0 ? (
-                  <div className="space-y-4">
-                    {reviewsData.reviews.map((review: any) => (
-                      <div key={review.id} className="border-b last:border-0 pb-4 last:pb-0" data-testid={`review-${review.id}`}>
-                        <div className="flex items-start gap-4">
-                          <Avatar>
-                            <AvatarFallback>{review.userName.charAt(0).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium">{review.userName}</p>
-                                <div className="flex items-center gap-2">
-                                  <div className="flex">
-                                    {[1, 2, 3, 4, 5].map((star) => (
-                                      <Star
-                                        key={star}
-                                        className={`w-3 h-3 ${star <= review.rating
-                                          ? "fill-yellow-400 text-yellow-400"
-                                          : "text-gray-300 dark:text-gray-600"
-                                          }`}
-                                      />
-                                    ))}
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {format(new Date(review.createdAt), "dd/MM/yyyy")}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                            {review.comment && (
-                              <p className="text-sm text-muted-foreground">{review.comment}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>{t("reviews.noReviews")}</p>
-                    <p className="text-sm mt-1">{t("reviews.beFirst")}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Affichage du carrousel d'avis professionnel */}
+            {reviewsData?.reviews && reviewsData.reviews.length > 0 && (
+              <ReviewCarousel reviews={reviewsData.reviews} />
+            )}
           </div>
         ) : (
           <div className="text-center py-12">Produit non trouvé</div>

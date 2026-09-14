@@ -359,9 +359,22 @@ export default function Checkout() {
 
         <div className="grid gap-8 md:grid-cols-2">
           <div className="space-y-6">
+            {/* ETAPE 1: ADRESSE */}
             <Card>
-              <CardContent className="space-y-4 pt-6">
-                {/* Sélection adresse existante ou nouvelle */}
+              <CardHeader className="pb-4">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-xl">1. Adresse de livraison</CardTitle>
+                  {currentStep > 1 && (
+                    <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)}>
+                      Modifier
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {currentStep === 1 ? (
+                  <>
+                    {/* Sélection adresse existante ou nouvelle */}
                 {savedAddresses.length > 0 && currentStep === 1 && (
                   <RadioGroup
                     value={useNewAddress ? "new" : "existing"}
@@ -377,8 +390,7 @@ export default function Checkout() {
                     </div>
                   </RadioGroup>
                 )}
-
-                {/* Liste des adresses sauvegardées */}
+                    {/* Liste des adresses sauvegardées */}
                 {!useNewAddress && savedAddresses.length > 0 && currentStep === 1 && (
                   <div className="space-y-3">
                     {savedAddresses.map((addr) => (
@@ -419,8 +431,7 @@ export default function Checkout() {
                     ))}
                   </div>
                 )}
-
-                {/* Formulaire nouvelle adresse */}
+                    {/* Formulaire nouvelle adresse */}
                 {useNewAddress && currentStep === 1 && (
                   <>
                     {/* Prénom / Nom */}
@@ -571,33 +582,24 @@ export default function Checkout() {
                     </div>
                   </>
                 )}
-
-                {/* Afficher seulement à l'étape 1 */}
-                {currentStep === 1 && (
-                  <>
                     {error && (
                       <p className="text-sm text-destructive" data-testid="text-error">
                         {error}
                       </p>
                     )}
-
-                    {/* Bouton Suivant - Étape 1 */}
                     <Button
                       onClick={async () => {
                         const address = useNewAddress
                           ? shippingAddress
                           : savedAddresses.find(a => a.id === selectedAddressId);
-
                         if (!address) {
                           setError("Veuillez sélectionner ou renseigner une adresse");
                           return;
                         }
-
                         if (!address.firstName || !address.lastName || !address.address || !address.city || !address.postalCode) {
                           setError(t("checkout.addressRequired"));
                           return;
                         }
-
                         setError("");
                         await fetchShippingRates(address);
                         setCurrentStep(2);
@@ -615,32 +617,42 @@ export default function Checkout() {
                       )}
                     </Button>
                   </>
+                ) : (
+                  (() => {
+                    const addr = useNewAddress ? shippingAddress : savedAddresses.find(a => a.id === selectedAddressId);
+                    return addr ? (
+                      <div className="text-sm">
+                        <p className="font-medium">{addr.firstName} {addr.lastName}</p>
+                        <p className="text-muted-foreground">{addr.address}</p>
+                        {addr.addressLine2 && <p className="text-muted-foreground">{addr.addressLine2}</p>}
+                        <p className="text-muted-foreground">{addr.postalCode} {addr.city}, {addr.country}</p>
+                        {useNewAddress && shippingAddress.email && <p className="text-muted-foreground">{shippingAddress.email}</p>}
+                        {useNewAddress && (shippingAddress as any).phone && <p className="text-muted-foreground">{(shippingAddress as any).phone}</p>}
+                      </div>
+                    ) : null;
+                  })()
                 )}
+              </CardContent>
+            </Card>
 
-                {/* Étape 2: Options de livraison */}
-                {currentStep === 2 && (
+            {/* ETAPE 2: LIVRAISON */}
+            <Card className={currentStep < 2 ? 'opacity-50 pointer-events-none' : ''}>
+              <CardHeader className="pb-4">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-xl">2. Mode de livraison</CardTitle>
+                  {currentStep > 2 && (
+                    <Button variant="ghost" size="sm" onClick={() => setCurrentStep(2)}>
+                      Modifier
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {currentStep < 2 ? (
+                  <p className="text-sm text-muted-foreground">Veuillez d'abord valider votre adresse de livraison.</p>
+                ) : currentStep === 2 ? (
                   <>
-                    {/* Récapitulatif de l'adresse */}
-                    <div className="space-y-2 pb-4 border-b">
-                      <h3 className="font-semibold">Adresse de livraison</h3>
-                      {(() => {
-                        const address = useNewAddress
-                          ? shippingAddress
-                          : savedAddresses.find(a => a.id === selectedAddressId);
-                        return address ? (
-                          <div className="text-sm text-muted-foreground">
-                            <p className="font-medium text-foreground">{address.firstName} {address.lastName}</p>
-                            <p>{address.address}</p>
-                            {address.addressLine2 && <p>{address.addressLine2}</p>}
-                            <p>{address.postalCode} {address.city}, {address.country}</p>
-                          </div>
-                        ) : null;
-                      })()}
-                    </div>
-
-                    {/* Options de livraison */}
                     <div className="space-y-4">
-                      <h3 className="font-semibold">Choisissez votre mode de livraison</h3>
                       {loadingRates ? (
                         <div className="flex items-center justify-center py-4">
                           <Loader2 className="w-6 h-6 animate-spin" />
@@ -674,118 +686,95 @@ export default function Checkout() {
                         <p className="text-sm text-muted-foreground">Aucune option de livraison disponible</p>
                       )}
                     </div>
-                  </>
-                )}
+                    
+                    <div className="space-y-2 border rounded-lg p-4 bg-muted/20 mt-4">
+                      <Label className="font-semibold">Code promo</Label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={promoCode}
+                          onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                          placeholder="BIENVENUE"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm uppercase placeholder:normal-case"
+                          data-testid="input-promo-code"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={applyPromoCode}
+                          disabled={promoLoading || !promoCode.trim()}
+                        >
+                          {promoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Appliquer"}
+                        </Button>
+                      </div>
+                      {promoError && <p className="text-sm text-destructive">{promoError}</p>}
+                      {appliedDiscount && (
+                        <p className="text-sm text-green-600 font-medium">
+                          ✓ Code <strong>{appliedDiscount.code}</strong> appliqué : -{appliedDiscount.discountAmount.toFixed(2)} €
+                        </p>
+                      )}
+                    </div>
 
-                {/* Code Promo - Étape 2 */}
-                {currentStep === 2 && (
-                  <div className="space-y-2 border rounded-lg p-4 bg-muted/20">
-                    <Label className="font-semibold">Code promo</Label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                        placeholder="BIENVENUE"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm uppercase placeholder:normal-case"
-                        data-testid="input-promo-code"
-                      />
+                    <div className="flex gap-2 mt-4">
                       <Button
-                        type="button"
+                        onClick={() => setCurrentStep(1)}
                         variant="outline"
-                        onClick={applyPromoCode}
-                        disabled={promoLoading || !promoCode.trim()}
+                        className="flex-1"
                       >
-                        {promoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Appliquer"}
+                        Retour
+                      </Button>
+                      <Button
+                        onClick={handleContinueToPayment}
+                        disabled={!selectedRate || loading}
+                        className="flex-1"
+                        data-testid="button-continue-payment"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            {t("checkout.processing")}
+                          </>
+                        ) : (
+                          t("checkout.continueToPayment")
+                        )}
                       </Button>
                     </div>
-                    {promoError && <p className="text-sm text-destructive">{promoError}</p>}
-                    {appliedDiscount && (
-                      <p className="text-sm text-green-600 font-medium">
-                        ✓ Code <strong>{appliedDiscount.code}</strong> appliqué : -{appliedDiscount.discountAmount.toFixed(2)} €
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Boutons Étape 2 */}
-                {currentStep === 2 && (
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => setCurrentStep(1)}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Retour
-                    </Button>
-                    <Button
-                      onClick={handleContinueToPayment}
-                      disabled={!selectedRate || loading}
-                      className="flex-1"
-                      data-testid="button-continue-payment"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          {t("checkout.processing")}
-                        </>
-                      ) : (
-                        t("checkout.continueToPayment")
-                      )}
-                    </Button>
-                  </div>
+                  </>
+                ) : (
+                  selectedRate ? (
+                    <div className="text-sm">
+                      <p className="font-medium">{selectedRate.carrier} - {selectedRate.service}</p>
+                      <p className="text-muted-foreground">Livraison estimée : {selectedRate.rateId.includes('_fr_') || selectedRate.rateId.includes('-fr-') ? '2-4' : '3-5'} jours</p>
+                      <p className="font-medium mt-1">{parseFloat(selectedRate.amount).toFixed(2)} €</p>
+                    </div>
+                  ) : null
                 )}
               </CardContent>
             </Card>
 
-            {showPayment && (
-              <>
-                {/* Affichage de l'adresse de livraison sélectionnée */}
-                <Card className="mb-6">
-                  <CardContent className="pt-6">
-                    {selectedAddressId && savedAddresses.length > 0 ? (
-                      (() => {
-                        const addr = savedAddresses.find(a => a.id === selectedAddressId);
-                        return addr ? (
-                          <div className="text-sm">
-                            <p className="font-medium">{addr.firstName} {addr.lastName}</p>
-                            <p className="text-muted-foreground">{addr.address}</p>
-                            {addr.addressLine2 && <p className="text-muted-foreground">{addr.addressLine2}</p>}
-                            <p className="text-muted-foreground">{addr.postalCode} {addr.city}, {addr.country}</p>
-                          </div>
-                        ) : null;
-                      })()
-                    ) : (
-                      <div className="text-sm">
-                        <p className="font-medium">{shippingAddress.firstName} {shippingAddress.lastName}</p>
-                        <p className="text-muted-foreground">{shippingAddress.address}</p>
-                        {shippingAddress.addressLine2 && <p className="text-muted-foreground">{shippingAddress.addressLine2}</p>}
-                        <p className="text-muted-foreground">{shippingAddress.postalCode} {shippingAddress.city}, {shippingAddress.country}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t("checkout.paymentDetails")}</CardTitle>
-                    <CardDescription>{t("checkout.securePayment")}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {clientSecret && (
-                      <Elements
-                        key={clientSecret}
-                        options={options}
-                        stripe={stripePromise}
-                      >
-                        <CheckoutForm />
-                      </Elements>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
+            {/* ETAPE 3: PAIEMENT */}
+            <Card className={currentStep < 3 ? 'opacity-50 pointer-events-none' : ''}>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-xl">3. Paiement</CardTitle>
+                <CardDescription>{t("checkout.securePayment")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {currentStep < 3 ? (
+                  <p className="text-sm text-muted-foreground">Veuillez valider vos options de livraison pour procéder au paiement.</p>
+                ) : (
+                  clientSecret && (
+                    <Elements
+                      key={clientSecret}
+                      options={options}
+                      stripe={stripePromise}
+                    >
+                      <CheckoutForm />
+                    </Elements>
+                  )
+                )}
+              </CardContent>
+            </Card>
           </div>
-
           <div>
             <Card>
               <CardHeader>
