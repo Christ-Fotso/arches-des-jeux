@@ -193,9 +193,7 @@ export default function CheckoutForm() {
                 wallets: {
                   applePay: 'auto',
                   googlePay: 'auto'
-                },
-                // @ts-ignore - Some versions of react-stripe-js support link here
-                link: 'never'
+                }
               }}
               onReady={({availablePaymentMethods}) => {
                 if (!availablePaymentMethods || (selectedMethod === 'apple_pay' && !availablePaymentMethods.applePay) || (selectedMethod === 'google_pay' && !availablePaymentMethods.googlePay)) {
