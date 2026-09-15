@@ -504,6 +504,50 @@ class EmailService {
       return false;
     }
   }
+  /**
+   * Transfère un email reçu via le Webhook Inbound de Resend vers Gmail
+   */
+  async forwardInboundEmail(webhookData: any): Promise<boolean> {
+    if (!this.resend) return false;
+
+    try {
+      const from = webhookData.from || 'Inconnu';
+      const to = webhookData.to ? webhookData.to.join(', ') : 'contact@larchedesjeux.fr';
+      const subject = webhookData.subject || 'Sans objet';
+      const text = webhookData.text || '';
+      const html = webhookData.html || `<p>${text}</p>`;
+
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px;">
+          <h2 style="color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">Email reçu sur ${to}</h2>
+          <p><strong>De :</strong> ${from}</p>
+          <p><strong>Sujet :</strong> ${subject}</p>
+          <div style="margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #000;">
+            ${html}
+          </div>
+        </div>
+      `;
+
+      const { error } = await this.resend.emails.send({
+        from: this.fromEmail, // Doit être une adresse autorisée par Resend sur le domaine
+        to: 'Larchedesjeux@gmail.com',
+        reply_to: from, // Permet de répondre directement à l'expéditeur original depuis Gmail
+        subject: `[L'Arche Transfert] ${subject}`,
+        html: htmlContent,
+      });
+
+      if (error) {
+        console.error('❌ Erreur transfert webhook:', error);
+        return false;
+      }
+      
+      console.log(`✅ Email transféré avec succès de ${from} vers Gmail`);
+      return true;
+    } catch (err) {
+      console.error('❌ Exception transfert webhook:', err);
+      return false;
+    }
+  }
 }
 
 export const emailService = new EmailService();

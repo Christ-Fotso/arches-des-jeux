@@ -1280,6 +1280,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/webhooks/resend", async (req, res) => {
+    try {
+      const payload = req.body;
+      
+      // Resend envoie un type d'événement, par exemple "email.received"
+      if (payload && payload.type === "email.received" && payload.data) {
+        console.log(`📩 Webhook Resend reçu : nouvel email de ${payload.data.from}`);
+        await emailService.forwardInboundEmail(payload.data);
+      } else {
+        console.warn("⚠️ Webhook Resend ignoré : format ou type non reconnu");
+      }
+
+      // Toujours répondre 200 OK pour que Resend ne réessaie pas
+      res.status(200).send("OK");
+    } catch (error) {
+      console.error("❌ Erreur dans le Webhook Resend :", error);
+      res.status(500).send("Error");
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
