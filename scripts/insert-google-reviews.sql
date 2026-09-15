@@ -17,10 +17,10 @@ INSERT INTO users (id, email, password, name, role) VALUES
   (gen_random_uuid(), 'avis8@google.com', 'dummy_pwd', 'Nicolas Blanc', 'USER');
 
 -- ÉTAPE 2 : Insérer les 8 avis pour ces 8 utilisateurs sur le produit
--- Remplacez 'VOTRE_PRODUCT_ID' par le bon ID (ex: '4eb7e35b-1172-4d2d-8bcf-6f3beafc2134')
+-- Le product_id 'e77a96ab-69fb-4f9f-992b-48da2ab9a2fe' est "C’est quoi le verset ?"
 INSERT INTO reviews (product_id, user_id, rating, comment, created_at)
 SELECT 
-  'VOTRE_PRODUCT_ID'::uuid, 
+  'e77a96ab-69fb-4f9f-992b-48da2ab9a2fe'::uuid, 
   id, 
   5, -- Remplacez 5 par la vraie note si certains ont mis 4
   CASE 
