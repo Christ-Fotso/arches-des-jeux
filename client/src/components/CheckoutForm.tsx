@@ -185,6 +185,18 @@ export default function CheckoutForm() {
           
           <div className="p-4 bg-muted/20 border rounded-lg">
             <ExpressCheckoutElement 
+              options={{
+                buttonType: {
+                  applePay: 'pay',
+                  googlePay: 'pay'
+                },
+                wallets: {
+                  applePay: 'auto',
+                  googlePay: 'auto'
+                },
+                // @ts-ignore - Some versions of react-stripe-js support link here
+                link: 'never'
+              }}
               onReady={({availablePaymentMethods}) => {
                 if (!availablePaymentMethods || (selectedMethod === 'apple_pay' && !availablePaymentMethods.applePay) || (selectedMethod === 'google_pay' && !availablePaymentMethods.googlePay)) {
                   toast({
