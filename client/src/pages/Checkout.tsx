@@ -10,13 +10,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiRequest } from "@/lib/queryClient";
 import { useCurrencyConversion } from "@/hooks/useCurrencyConversion";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2, MapPin, Truck } from "lucide-react";
 import type { Stripe } from "@stripe/stripe-js";
 import { useToast } from "@/hooks/use-toast";
 
@@ -118,7 +118,6 @@ export default function Checkout() {
           discountAmount: data.discountAmount,
         });
         setPromoError("");
-        // Si on a déjà généré le payment intent, il faut le regénérer pour appliquer la réduction
         if (clientSecret) {
           handleContinueToPayment();
         }
@@ -197,21 +196,20 @@ export default function Checkout() {
 
     setCurrency(detectCurrencyFromCountry(country));
 
-    // Simulation front-end des frais de port (pour affichage immédiat)
+    // Simulation front-end des frais de port
     if (country === "FR") {
       setLocalShippingCost(0);
       const idfDepts = ["75", "77", "78", "91", "92", "93", "94", "95"];
       if (idfDepts.some(d => postalCode.startsWith(d))) {
-        setLocalShippingDays("1-2 jours");
+        setLocalShippingDays("1 à 2 jours");
       } else {
-        setLocalShippingDays("2-3 jours");
+        setLocalShippingDays("2 à 3 jours");
       }
     } else {
       setLocalShippingCost(9.90);
-      setLocalShippingDays("3-5 jours");
+      setLocalShippingDays("3 à 4 jours");
     }
 
-    // Réinitialiser le clientSecret si l'adresse change pour forcer la revalidation
     setClientSecret("");
 
   }, [selectedAddressId, shippingAddress.country, shippingAddress.postalCode, savedAddresses, useNewAddress]);
@@ -324,11 +322,26 @@ export default function Checkout() {
     },
   };
 
+  const isAddressValid = () => {
+    if (useNewAddress) {
+      if (!shippingAddress.firstName || !shippingAddress.lastName || !shippingAddress.address || !shippingAddress.city || !shippingAddress.postalCode) return false;
+      if (shippingAddress.country === "FR" && !/^\d{5}$/.test(shippingAddress.postalCode)) return false;
+      if (!user && !shippingAddress.email) return false;
+      return true;
+    }
+    if (selectedAddressId) {
+      const addr = savedAddresses.find(a => a.id === selectedAddressId);
+      if (addr && addr.country === "FR" && !/^\d{5}$/.test(addr.postalCode)) return false;
+      return true;
+    }
+    return false;
+  };
+
   if (loadingAddresses) {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
-        <main className="flex-1 container max-w-4xl mx-auto px-4 py-8 flex items-center justify-center">
+        <main className="flex-1 container max-w-3xl mx-auto px-4 py-8 flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin" />
         </main>
         <Footer />
@@ -339,210 +352,241 @@ export default function Checkout() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-1 container max-w-5xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-2">{t("checkout.title")}</h1>
-
-        <div className="flex items-center gap-2 mb-6">
-          <Label htmlFor="currency-selector">Devise de paiement:</Label>
-          <Select value={currency} onValueChange={(val) => setCurrency(val as any)}>
-            <SelectTrigger id="currency-selector" className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="EUR">€ EUR</SelectItem>
-              <SelectItem value="CHF">CHF</SelectItem>
-              <SelectItem value="USD">$ USD</SelectItem>
-              <SelectItem value="GBP">£ GBP</SelectItem>
-            </SelectContent>
-          </Select>
+      <main className="flex-1 container max-w-3xl mx-auto px-4 py-8 space-y-8">
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <h1 className="text-3xl font-bold">{t("checkout.title")}</h1>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="currency-selector" className="text-muted-foreground whitespace-nowrap">Devise :</Label>
+            <Select value={currency} onValueChange={(val) => setCurrency(val as any)}>
+              <SelectTrigger id="currency-selector" className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="EUR">€ EUR</SelectItem>
+                <SelectItem value="CHF">CHF</SelectItem>
+                <SelectItem value="USD">$ USD</SelectItem>
+                <SelectItem value="GBP">£ GBP</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-xl">Adresse de livraison</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {savedAddresses.length > 0 && (
-                  <RadioGroup
-                    value={useNewAddress ? "new" : "existing"}
-                    onValueChange={(value) => setUseNewAddress(value === "new")}
+        {/* 1. RÉCAPITULATIF DE LA COMMANDE */}
+        <Card className="shadow-md border-primary/20">
+          <CardHeader className="bg-muted/30 pb-4">
+            <CardTitle className="text-xl">{t("checkout.orderSummary")}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4">
+            {cartItems.map((item) => (
+              <div key={item.id} className="flex justify-between items-start">
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{item.title}</p>
+                  <p className="text-xs text-muted-foreground">{t("checkout.quantity")}: {item.quantity}</p>
+                </div>
+                <p className="font-medium text-sm">
+                  {getCurrencySymbol(currency)} {convertPrice(item.price * item.quantity, currency).toFixed(2)}
+                </p>
+              </div>
+            ))}
+
+            <div className="space-y-2 border-t pt-4">
+              <Label className="text-sm font-semibold">Code promo</Label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder="ENTREZ LE CODE"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={applyPromoCode} disabled={promoLoading || !promoCode.trim()}>
+                  {promoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Tester"}
+                </Button>
+              </div>
+              {promoError && <p className="text-xs text-destructive">{promoError}</p>}
+              {appliedDiscount && (
+                <p className="text-xs text-green-600 font-medium bg-green-50 p-2 rounded-md">
+                  ✓ Code {appliedDiscount.code} appliqué : -{appliedDiscount.discountAmount.toFixed(2)} €
+                </p>
+              )}
+            </div>
+
+            <div className="border-t pt-4 space-y-3 text-sm">
+              <div className="flex justify-between items-center text-muted-foreground">
+                <span>Sous-total</span>
+                <span>{getCurrencySymbol(currency)} {convertPrice(subtotal, currency).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center font-medium">
+                <span>Livraison</span>
+                <span className={localShippingCost === 0 ? "text-green-600" : ""}>
+                  {localShippingCost === 0 ? "Gratuite" : `${localShippingCost.toFixed(2)} €`}
+                </span>
+              </div>
+              {appliedDiscount && (
+                <div className="flex justify-between items-center text-green-600">
+                  <span>Réduction</span>
+                  <span>-{appliedDiscount.discountAmount.toFixed(2)} €</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center font-bold text-xl border-t pt-3">
+                <span>{t("checkout.total")}</span>
+                <span>
+                  {getCurrencySymbol(currency)} {(
+                    convertPrice(subtotal - (appliedDiscount?.discountAmount || 0), currency) 
+                    + localShippingCost
+                  ).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 2. ADRESSE DE LIVRAISON */}
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl">Adresse de livraison</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {savedAddresses.length > 0 && (
+              <RadioGroup
+                value={useNewAddress ? "new" : "existing"}
+                onValueChange={(value) => setUseNewAddress(value === "new")}
+                className="mb-4 flex flex-row gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="existing" id="existing" />
+                  <Label htmlFor="existing">Adresse enregistrée</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="new" id="new" />
+                  <Label htmlFor="new">Nouvelle adresse</Label>
+                </div>
+              </RadioGroup>
+            )}
+
+            {!useNewAddress && savedAddresses.length > 0 && (
+              <div className="space-y-3">
+                {savedAddresses.map((addr) => (
+                  <div
+                    key={addr.id}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedAddressId === addr.id
+                      ? "border-primary bg-primary/5"
+                      : "border-gray-200 hover:border-primary/50"
+                      }`}
+                    onClick={() => setSelectedAddressId(addr.id)}
                   >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="existing" id="existing" />
-                      <Label htmlFor="existing">Utiliser une adresse existante</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="new" id="new" />
-                      <Label htmlFor="new">Nouvelle adresse</Label>
-                    </div>
-                  </RadioGroup>
-                )}
-
-                {!useNewAddress && savedAddresses.length > 0 && (
-                  <div className="space-y-3">
-                    {savedAddresses.map((addr) => (
-                      <div
-                        key={addr.id}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedAddressId === addr.id
-                          ? "border-primary bg-primary/5"
-                          : "border-gray-200 hover:border-primary/50"
-                          }`}
-                        onClick={() => setSelectedAddressId(addr.id)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start space-x-3">
-                            <MapPin className="w-5 h-5 mt-0.5 text-primary" />
-                            <div>
-                              {addr.label && <p className="font-medium text-sm">{addr.label}</p>}
-                              <p className="text-sm">{addr.firstName} {addr.lastName}</p>
-                              <p className="text-sm text-muted-foreground">{addr.address} {addr.addressLine2 && `, ${addr.addressLine2}`}</p>
-                              <p className="text-sm text-muted-foreground">{addr.postalCode} {addr.city}, {addr.country}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {useNewAddress && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="firstName">{t("checkout.firstName")} *</Label>
-                        <Input id="firstName" value={shippingAddress.firstName} onChange={(e) => setShippingAddress({ ...shippingAddress, firstName: e.target.value })} required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="lastName">{t("checkout.lastName")} *</Label>
-                        <Input id="lastName" value={shippingAddress.lastName} onChange={(e) => setShippingAddress({ ...shippingAddress, lastName: e.target.value })} required />
+                    <div className="flex items-start space-x-3">
+                      <MapPin className="w-5 h-5 mt-0.5 text-primary" />
+                      <div>
+                        {addr.label && <p className="font-medium text-sm">{addr.label}</p>}
+                        <p className="text-sm font-medium">{addr.firstName} {addr.lastName}</p>
+                        <p className="text-sm text-muted-foreground">{addr.address} {addr.addressLine2 && `, ${addr.addressLine2}`}</p>
+                        <p className="text-sm text-muted-foreground">{addr.postalCode} {addr.city}, {addr.country}</p>
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input id="email" type="email" value={shippingAddress.email} onChange={(e) => setShippingAddress({ ...shippingAddress, email: e.target.value })} required />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="address">{t("checkout.address")} *</Label>
-                      <Input id="address" value={shippingAddress.address} onChange={(e) => setShippingAddress({ ...shippingAddress, address: e.target.value })} required />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="postalCode">{t("checkout.postalCode")} *</Label>
-                        <Input id="postalCode" value={shippingAddress.postalCode} onChange={(e) => setShippingAddress({ ...shippingAddress, postalCode: e.target.value })} required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="city">{t("checkout.city")} *</Label>
-                        <Input id="city" value={shippingAddress.city} onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })} required />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="country">{t("checkout.country")} *</Label>
-                      <select id="country" value={shippingAddress.country} onChange={(e) => setShippingAddress({ ...shippingAddress, country: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background" required>
-                        <option value="FR">🇫🇷 France</option>
-                        <option value="CH">🇨🇭 Suisse</option>
-                        <option value="BE">🇧🇪 Belgique</option>
-                        <option value="CA">🇨🇦 Canada</option>
-                        <option value="US">🇺🇸 USA</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                
-                {!clientSecret && (
-                  <Button onClick={handleContinueToPayment} disabled={loading} className="w-full">
-                    {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validation...</> : "Continuer vers le paiement"}
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div>
-            <Card className="sticky top-6">
-              <CardHeader>
-                <CardTitle>{t("checkout.orderSummary")}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{t("checkout.quantity")}: {item.quantity}</p>
-                    </div>
-                    <p className="font-medium text-sm">
-                      {getCurrencySymbol(currency)} {convertPrice(item.price * item.quantity, currency).toFixed(2)}
-                    </p>
                   </div>
                 ))}
+              </div>
+            )}
 
-                <div className="space-y-2 border-t pt-4">
-                  <Label className="text-sm font-semibold">Code promo</Label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      placeholder="ENTREZ LE CODE"
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm uppercase placeholder:normal-case"
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={applyPromoCode} disabled={promoLoading || !promoCode.trim()}>
-                      {promoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Tester"}
-                    </Button>
+            {useNewAddress && (
+              <div className="grid gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="firstName">{t("checkout.firstName")} *</Label>
+                    <Input id="firstName" value={shippingAddress.firstName} onChange={(e) => setShippingAddress({ ...shippingAddress, firstName: e.target.value })} required />
                   </div>
-                  {promoError && <p className="text-xs text-destructive">{promoError}</p>}
-                  {appliedDiscount && (
-                    <p className="text-xs text-green-600 font-medium">
-                      ✓ Code {appliedDiscount.code} appliqué : -{appliedDiscount.discountAmount.toFixed(2)} €
-                    </p>
-                  )}
-                </div>
-
-                <div className="border-t pt-4 space-y-2 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span>{t("checkout.subtotal")}</span>
-                    <span>{getCurrencySymbol(currency)} {convertPrice(subtotal, currency).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Frais de port ({localShippingDays})</span>
-                    <span>{localShippingCost === 0 ? "Gratuit" : `${localShippingCost.toFixed(2)} €`}</span>
-                  </div>
-                  {appliedDiscount && (
-                    <div className="flex justify-between items-center text-green-600">
-                      <span>Réduction</span>
-                      <span>-{appliedDiscount.discountAmount.toFixed(2)} €</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center font-bold text-lg border-t pt-2">
-                    <span>{t("checkout.total")}</span>
-                    <span>
-                      {getCurrencySymbol(currency)} {(
-                        convertPrice(subtotal - (appliedDiscount?.discountAmount || 0), currency) 
-                        + localShippingCost
-                      ).toFixed(2)}
-                    </span>
+                  <div className="space-y-1">
+                    <Label htmlFor="lastName">{t("checkout.lastName")} *</Label>
+                    <Input id="lastName" value={shippingAddress.lastName} onChange={(e) => setShippingAddress({ ...shippingAddress, lastName: e.target.value })} required />
                   </div>
                 </div>
 
-                {clientSecret && stripePromise && (
-                  <div className="mt-6 border-t pt-6">
-                    <h3 className="font-semibold text-lg mb-4 text-center">Sélectionnez votre moyen de paiement</h3>
-                    <Elements key={clientSecret} options={options} stripe={stripePromise}>
-                      <CheckoutForm />
-                    </Elements>
+                <div className="space-y-1">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input id="email" type="email" value={shippingAddress.email} onChange={(e) => setShippingAddress({ ...shippingAddress, email: e.target.value })} required />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="address">{t("checkout.address")} *</Label>
+                  <Input id="address" value={shippingAddress.address} onChange={(e) => setShippingAddress({ ...shippingAddress, address: e.target.value })} required />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="postalCode">{t("checkout.postalCode")} *</Label>
+                    <Input id="postalCode" value={shippingAddress.postalCode} onChange={(e) => setShippingAddress({ ...shippingAddress, postalCode: e.target.value })} required />
                   </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="city">{t("checkout.city")} *</Label>
+                    <Input id="city" value={shippingAddress.city} onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })} required />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="country">{t("checkout.country")} *</Label>
+                  <select id="country" value={shippingAddress.country} onChange={(e) => setShippingAddress({ ...shippingAddress, country: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background" required>
+                    <option value="FR">🇫🇷 France</option>
+                    <option value="CH">🇨🇭 Suisse</option>
+                    <option value="BE">🇧🇪 Belgique</option>
+                    <option value="CA">🇨🇦 Canada</option>
+                    <option value="US">🇺🇸 USA</option>
+                  </select>
+                </div>
+              </div>
+            )}
+            
+            {error && <p className="text-sm text-destructive mt-2 font-medium bg-destructive/10 p-2 rounded-md">{error}</p>}
+          </CardContent>
+        </Card>
+
+        {/* 3. VOLET LIVRAISON (COMPACT) */}
+        <div className={`transition-opacity duration-300 ${isAddressValid() ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+          <div className="bg-muted/40 border rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary/10 p-2 rounded-full">
+                <Truck className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Mode de livraison</p>
+                <p className="text-xs text-muted-foreground">Livraison standard à domicile</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className={`font-bold ${localShippingCost === 0 ? 'text-green-600' : ''}`}>
+                {localShippingCost === 0 ? "Gratuite" : `${localShippingCost.toFixed(2)} €`}
+              </p>
+              <p className="text-xs text-muted-foreground">Délai estimé : {localShippingDays}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. PAIEMENT */}
+        <div className={`transition-all duration-300 ${isAddressValid() ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+          {!clientSecret ? (
+            <div className="text-center bg-muted/20 border rounded-lg p-8">
+              <h3 className="font-semibold text-lg mb-4">Finalisez votre adresse pour payer</h3>
+              <Button onClick={handleContinueToPayment} disabled={loading || !isAddressValid()} size="lg" className="px-8">
+                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validation...</> : "Continuer vers le paiement"}
+              </Button>
+            </div>
+          ) : (
+            <Card className="border-primary/20 shadow-md">
+              <CardHeader className="pb-4 text-center">
+                <CardTitle className="text-xl">Sélectionnez votre moyen de paiement</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stripePromise && (
+                  <Elements key={clientSecret} options={options} stripe={stripePromise}>
+                    <CheckoutForm />
+                  </Elements>
                 )}
               </CardContent>
             </Card>
-          </div>
+          )}
         </div>
+
       </main>
       <Footer />
     </div>
