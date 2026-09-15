@@ -4,13 +4,14 @@ import {
   useStripe,
   useElements,
   PaymentElement,
+  ExpressCheckoutElement
 } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/contexts/CartContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiRequest } from "@/lib/queryClient";
-import { Loader2 } from "lucide-react";
+import { Loader2, CreditCard, Smartphone } from "lucide-react";
 
 export default function CheckoutForm() {
   const stripe = useStripe();
@@ -19,9 +20,10 @@ export default function CheckoutForm() {
   const { toast } = useToast();
   const { clearCart } = useCart();
   const { t } = useLanguage();
+  
   const [isProcessing, setIsProcessing] = useState(false);
-  // isReady devient true uniquement quand Stripe a monté l'iframe de paiement
   const [isReady, setIsReady] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<'card' | 'wallet' | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -30,7 +32,7 @@ export default function CheckoutForm() {
       toast({
         variant: "destructive",
         title: t("checkout.error"),
-        description: "Le formulaire de paiement n'est pas encore prêt. Veuillez patienter.",
+        description: "Le formulaire n'est pas prêt.",
       });
       return;
     }
@@ -73,8 +75,8 @@ export default function CheckoutForm() {
         } else {
           toast({
             variant: "destructive",
-            title: t("checkout.error"),
-            description: data.error || t("checkout.orderCreationFailed"),
+            title: "Erreur",
+            description: data.error || "Erreur de création de commande",
           });
           setIsProcessing(false);
         }
@@ -82,52 +84,115 @@ export default function CheckoutForm() {
     } catch (err: any) {
       toast({
         variant: "destructive",
-        title: t("checkout.error"),
-        description: err.message || t("checkout.somethingWentWrong"),
+        title: "Erreur",
+        description: err.message || "Une erreur est survenue",
       });
       setIsProcessing(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {!isReady && (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">
-            Chargement du formulaire de paiement...
-          </span>
+    <div className="space-y-6">
+      {/* 1. SELECTION DU MOYEN DE PAIEMENT (Custom) */}
+      {!selectedMethod && (
+        <div className="space-y-4">
+          <p className="text-sm text-center text-muted-foreground mb-4">
+            Choisissez comment vous souhaitez payer :
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => setSelectedMethod('card')}
+              className="flex flex-col items-center justify-center p-4 border-2 border-transparent bg-muted/30 hover:bg-muted/50 rounded-xl transition-all hover:border-primary/50"
+            >
+              <CreditCard className="w-8 h-8 mb-2 text-primary" />
+              <span className="font-semibold text-sm">Carte Bancaire</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMethod('wallet')}
+              className="flex flex-col items-center justify-center p-4 border-2 border-transparent bg-muted/30 hover:bg-muted/50 rounded-xl transition-all hover:border-primary/50"
+            >
+              <Smartphone className="w-8 h-8 mb-2 text-primary" />
+              <span className="font-semibold text-sm">Apple / Google Pay</span>
+            </button>
+          </div>
         </div>
       )}
-      <PaymentElement 
-        options={{
-          layout: {
-            type: 'tabs',
-            defaultCollapsed: false
-          }
-        }}
-        onReady={() => setIsReady(true)} 
-      />
-      <Button
-        type="submit"
-        disabled={!stripe || !isReady || isProcessing}
-        className="w-full"
-        data-testid="button-pay"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            {t("checkout.processing")}
-          </>
-        ) : !isReady ? (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Chargement...
-          </>
-        ) : (
-          t("checkout.payNow")
-        )}
-      </Button>
-    </form>
+
+      {/* 2. AFFICHAGE DE LA METHODE SELECTIONNEE */}
+      {selectedMethod === 'wallet' && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="font-semibold">Paiement Rapide</h4>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedMethod(null)}>Changer</Button>
+          </div>
+          
+          <div className="p-4 bg-muted/20 border rounded-lg">
+            <ExpressCheckoutElement 
+              onReady={({availablePaymentMethods}) => {
+                if (!availablePaymentMethods) {
+                  toast({
+                    title: "Indisponible",
+                    description: "Apple Pay ou Google Pay n'est pas configuré ou supporté sur ce navigateur.",
+                    variant: "destructive"
+                  });
+                }
+              }}
+            />
+            <p className="text-xs text-center text-muted-foreground mt-4">
+              * Si aucun bouton ne s'affiche ci-dessus, cela signifie que votre appareil ou navigateur ne supporte pas Apple Pay / Google Pay, ou qu'aucune carte n'y est associée.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {selectedMethod === 'card' && (
+        <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="font-semibold">Carte Bancaire</h4>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedMethod(null)}>Changer</Button>
+          </div>
+
+          {!isReady && (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">
+                Chargement sécurisé...
+              </span>
+            </div>
+          )}
+          
+          <PaymentElement 
+            options={{
+              layout: 'accordion',
+              wallets: { applePay: 'never', googlePay: 'never' }
+            }}
+            onReady={() => setIsReady(true)} 
+          />
+          
+          <Button
+            type="submit"
+            disabled={!stripe || !isReady || isProcessing}
+            className="w-full"
+            data-testid="button-pay"
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Traitement en cours...
+              </>
+            ) : !isReady ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Chargement...
+              </>
+            ) : (
+              t("checkout.payNow")
+            )}
+          </Button>
+        </form>
+      )}
+    </div>
   );
 }
