@@ -74,7 +74,7 @@ export default function ProductCard({ product, onAddToCart, onClick }: ProductCa
                   key={starIndex}
                   className={`w-3 h-3 ${
                     starIndex <= Math.round(product.ratingAverage)
-                      ? "fill-primary text-primary"
+                      ? "fill-yellow-400 text-yellow-400"
                       : "fill-gray-200 text-gray-200 dark:fill-gray-700 dark:text-gray-700"
                   }`}
                 />

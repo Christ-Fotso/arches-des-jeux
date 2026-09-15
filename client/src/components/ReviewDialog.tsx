@@ -92,10 +92,10 @@ export default function ReviewDialog({ productId, productTitle, onClose }: Revie
                   data-testid={`button-star-${star}`}
                 >
                   <Star
-                    className={`w-8 h-8 ${
+                    className={`w-8 h-8 transition-colors ${
                       star <= (hoverRating || rating)
-                        ? "fill-primary text-primary"
-                        : "text-gray-300 dark:text-gray-600"
+                        ? "fill-yellow-400 text-yellow-400"
+                        : "fill-none text-muted-foreground"
                     }`}
                   />
                 </button>
