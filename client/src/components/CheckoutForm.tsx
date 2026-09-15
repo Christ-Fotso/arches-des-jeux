@@ -99,7 +99,15 @@ export default function CheckoutForm() {
           </span>
         </div>
       )}
-      <PaymentElement onReady={() => setIsReady(true)} />
+      <PaymentElement 
+        options={{
+          layout: {
+            type: 'tabs',
+            defaultCollapsed: false
+          }
+        }}
+        onReady={() => setIsReady(true)} 
+      />
       <Button
         type="submit"
         disabled={!stripe || !isReady || isProcessing}

@@ -16,8 +16,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Plus, MapPin } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
 import type { Stripe } from "@stripe/stripe-js";
+import { useToast } from "@/hooks/use-toast";
 
 interface ShippingAddress {
   id?: string;
@@ -46,24 +47,16 @@ interface SavedAddress {
   isDefault: boolean;
 }
 
-interface ShippingRate {
-  carrier: string;
-  service: string;
-  amount: string;
-  currency: string;
-  estimatedDays: number;
-  rateId: string;
-}
-
 export default function Checkout() {
   const [, setLocation] = useLocation();
   const { cartItems } = useCart();
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { toast } = useToast();
+  
   const [clientSecret, setClientSecret] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
-  const [showPayment, setShowPayment] = useState(false);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
 
   // Gestion des adresses
@@ -83,13 +76,9 @@ export default function Checkout() {
     country: "FR",
   });
 
-  // Gestion des options de livraison Shippo
-  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
-  const [loadingRates, setLoadingRates] = useState(false);
-  const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null);
-
-  // Gestion des étapes du checkout
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  // Frais de port locaux calculés en front pour l'affichage immédiat
+  const [localShippingCost, setLocalShippingCost] = useState(0);
+  const [localShippingDays, setLocalShippingDays] = useState("");
 
   // Gestion multi-devises
   const [currency, setCurrency] = useState<'CHF' | 'EUR' | 'USD' | 'GBP'>('EUR');
@@ -105,6 +94,11 @@ export default function Checkout() {
     value: number;
     discountAmount: number;
   } | null>(null);
+
+  const subtotal = cartItems.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
 
   const applyPromoCode = async () => {
     if (!promoCode.trim()) return;
@@ -124,6 +118,10 @@ export default function Checkout() {
           discountAmount: data.discountAmount,
         });
         setPromoError("");
+        // Si on a déjà généré le payment intent, il faut le regénérer pour appliquer la réduction
+        if (clientSecret) {
+          handleContinueToPayment();
+        }
       } else {
         setPromoError(data.message || "Code promo invalide");
         setAppliedDiscount(null);
@@ -136,7 +134,6 @@ export default function Checkout() {
     }
   };
 
-  // Fonction de détection automatique de devise selon le pays
   const detectCurrencyFromCountry = (countryCode: string): 'CHF' | 'EUR' | 'USD' | 'GBP' => {
     const currencyMap: Record<string, 'CHF' | 'EUR' | 'USD' | 'GBP'> = {
       'CH': 'CHF',
@@ -160,9 +157,7 @@ export default function Checkout() {
       setLocation("/");
       return;
     }
-
     if (user) {
-      // Charger les adresses sauvegardées
       loadSavedAddresses();
     } else {
       setUseNewAddress(true);
@@ -170,7 +165,6 @@ export default function Checkout() {
     }
   }, [user, cartItems, setLocation]);
 
-  // Fetch Stripe Publishable Key
   useEffect(() => {
     async function fetchStripeConfig() {
       try {
@@ -186,34 +180,53 @@ export default function Checkout() {
     fetchStripeConfig();
   }, []);
 
-  // Détection automatique de la devise selon l'adresse
   useEffect(() => {
-    if (selectedAddressId && savedAddresses.length > 0) {
+    let country = "FR";
+    let postalCode = "";
+
+    if (useNewAddress) {
+      country = shippingAddress.country;
+      postalCode = shippingAddress.postalCode;
+    } else if (selectedAddressId && savedAddresses.length > 0) {
       const addr = savedAddresses.find(a => a.id === selectedAddressId);
       if (addr) {
-        const detectedCurrency = detectCurrencyFromCountry(addr.country);
-        setCurrency(detectedCurrency);
+        country = addr.country;
+        postalCode = addr.postalCode;
       }
-    } else if (shippingAddress.country && shippingAddress.country !== 'CH') {
-      const detectedCurrency = detectCurrencyFromCountry(shippingAddress.country);
-      setCurrency(detectedCurrency);
     }
-  }, [selectedAddressId, shippingAddress.country, savedAddresses]);
+
+    setCurrency(detectCurrencyFromCountry(country));
+
+    // Simulation front-end des frais de port (pour affichage immédiat)
+    if (country === "FR") {
+      setLocalShippingCost(0);
+      const idfDepts = ["75", "77", "78", "91", "92", "93", "94", "95"];
+      if (idfDepts.some(d => postalCode.startsWith(d))) {
+        setLocalShippingDays("1-2 jours");
+      } else {
+        setLocalShippingDays("2-3 jours");
+      }
+    } else {
+      setLocalShippingCost(9.90);
+      setLocalShippingDays("3-5 jours");
+    }
+
+    // Réinitialiser le clientSecret si l'adresse change pour forcer la revalidation
+    setClientSecret("");
+
+  }, [selectedAddressId, shippingAddress.country, shippingAddress.postalCode, savedAddresses, useNewAddress]);
 
   const loadSavedAddresses = async () => {
     try {
       const response = await apiRequest("GET", "/api/shipping-addresses");
       const addresses = await response.json();
       setSavedAddresses(addresses);
-
-      // Sélectionner l'adresse par défaut si elle existe
       const defaultAddress = addresses.find((addr: SavedAddress) => addr.isDefault);
       if (defaultAddress) {
         setSelectedAddressId(defaultAddress.id);
       } else if (addresses.length > 0) {
         setSelectedAddressId(addresses[0].id);
       } else {
-        // Aucune adresse sauvegardée, utiliser le formulaire
         setUseNewAddress(true);
       }
     } catch (err) {
@@ -224,54 +237,11 @@ export default function Checkout() {
     }
   };
 
-  const fetchShippingRates = async (address: ShippingAddress | SavedAddress) => {
-    try {
-      setLoadingRates(true);
-      setError("");
-
-      const shippingAddr = {
-        name: `${address.firstName} ${address.lastName}`,
-        street1: address.address,
-        city: address.city,
-        zip: address.postalCode,
-        country: address.country,
-      };
-
-      const response = await apiRequest("POST", "/api/shipping/rates", {
-        address: shippingAddr,
-        itemCount: cartItems.length,
-      });
-
-      const data = await response.json();
-      console.log('Shipping rates response:', data);
-
-      // Le serveur retourne directement un tableau
-      const rates = Array.isArray(data) ? data : (data.rates || []);
-      setShippingRates(rates);
-
-      // Sélectionner automatiquement l'option la moins chère
-      if (rates && rates.length > 0) {
-        setSelectedRate(rates[0]);
-      }
-    } catch (err: any) {
-      console.error("Error fetching shipping rates:", err);
-      setError("Impossible de calculer les frais de livraison. Veuillez réessayer.");
-    } finally {
-      setLoadingRates(false);
-    }
-  };
-
-  const subtotal = cartItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-
   const handleContinueToPayment = async () => {
     let addressData;
     let addressId;
 
     if (useNewAddress) {
-      // Valider la nouvelle adresse
       if (!user && !shippingAddress.email) {
         setError("L'adresse email est requise");
         return;
@@ -280,33 +250,33 @@ export default function Checkout() {
         setError(t("checkout.addressRequired"));
         return;
       }
+      if (shippingAddress.country === "FR" && !/^\d{5}$/.test(shippingAddress.postalCode)) {
+        setError("Le code postal en France doit comporter exactement 5 chiffres.");
+        return;
+      }
       addressData = shippingAddress;
     } else {
-      // Utiliser une adresse existante
       if (!selectedAddressId) {
         setError("Veuillez sélectionner une adresse");
         return;
       }
+      const addr = savedAddresses.find(a => a.id === selectedAddressId);
+      if (addr && addr.country === "FR" && !/^\d{5}$/.test(addr.postalCode)) {
+         setError("Le code postal en France doit comporter exactement 5 chiffres.");
+         return;
+      }
       addressId = selectedAddressId;
-    }
-
-    // Vérifier qu'un transporteur est sélectionné
-    if (!selectedRate) {
-      setError("Veuillez sélectionner une option de livraison");
-      return;
     }
 
     try {
       setLoading(true);
+      setError("");
+      
       const payload: any = {
         items: cartItems.map((item) => ({
           id: item.id,
           quantity: item.quantity,
         })),
-        shippingCost: selectedRate.amount,
-        shippingCarrier: selectedRate.carrier,
-        shippingService: selectedRate.service,
-        estimatedDeliveryDays: selectedRate.estimatedDays,
         currency: currency,
         guestEmail: !user ? shippingAddress.email : undefined,
         discountCode: appliedDiscount?.code || undefined,
@@ -320,11 +290,19 @@ export default function Checkout() {
 
       const response = await apiRequest("POST", "/api/create-payment-intent", payload);
       const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur de validation");
+      }
+
       setClientSecret(data.clientSecret);
-      setShowPayment(true);
-      setCurrentStep(3); // Passer à l'étape 3
     } catch (err: any) {
       setError(err.message || "Failed to initialize payment");
+      toast({
+        title: "Erreur",
+        description: err.message,
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -334,6 +312,15 @@ export default function Checkout() {
     clientSecret,
     appearance: {
       theme: 'stripe' as const,
+      variables: {
+        colorPrimary: '#0f172a',
+      },
+      rules: {
+        '.Tab': {
+          border: '1px solid #E0E6EB',
+          boxShadow: '0px 1px 1px rgba(0, 0, 0, 0.03), 0px 3px 7px rgba(18, 42, 66, 0.04)',
+        },
+      }
     },
   };
 
@@ -352,10 +339,9 @@ export default function Checkout() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-1 container max-w-4xl mx-auto px-4 py-8">
+      <main className="flex-1 container max-w-5xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-2">{t("checkout.title")}</h1>
 
-        {/* Sélecteur de devise */}
         <div className="flex items-center gap-2 mb-6">
           <Label htmlFor="currency-selector">Devise de paiement:</Label>
           <Select value={currency} onValueChange={(val) => setCurrency(val as any)}>
@@ -371,25 +357,14 @@ export default function Checkout() {
           </Select>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-2">
+        <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
           <div className="space-y-6">
-            {/* ETAPE 1: ADRESSE */}
             <Card>
               <CardHeader className="pb-4">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl">1. Adresse de livraison</CardTitle>
-                  {currentStep > 1 && (
-                    <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)}>
-                      Modifier
-                    </Button>
-                  )}
-                </div>
+                <CardTitle className="text-xl">Adresse de livraison</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {currentStep === 1 ? (
-                  <>
-                    {/* Sélection adresse existante ou nouvelle */}
-                {savedAddresses.length > 0 && currentStep === 1 && (
+                {savedAddresses.length > 0 && (
                   <RadioGroup
                     value={useNewAddress ? "new" : "existing"}
                     onValueChange={(value) => setUseNewAddress(value === "new")}
@@ -404,8 +379,8 @@ export default function Checkout() {
                     </div>
                   </RadioGroup>
                 )}
-                    {/* Liste des adresses sauvegardées */}
-                {!useNewAddress && savedAddresses.length > 0 && currentStep === 1 && (
+
+                {!useNewAddress && savedAddresses.length > 0 && (
                   <div className="space-y-3">
                     {savedAddresses.map((addr) => (
                       <div
@@ -420,431 +395,150 @@ export default function Checkout() {
                           <div className="flex items-start space-x-3">
                             <MapPin className="w-5 h-5 mt-0.5 text-primary" />
                             <div>
-                              {addr.label && (
-                                <p className="font-medium text-sm">{addr.label}</p>
-                              )}
-                              <p className="text-sm">
-                                {addr.firstName} {addr.lastName}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {addr.address}
-                                {addr.addressLine2 && `, ${addr.addressLine2}`}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {addr.postalCode} {addr.city}, {addr.country}
-                              </p>
+                              {addr.label && <p className="font-medium text-sm">{addr.label}</p>}
+                              <p className="text-sm">{addr.firstName} {addr.lastName}</p>
+                              <p className="text-sm text-muted-foreground">{addr.address} {addr.addressLine2 && `, ${addr.addressLine2}`}</p>
+                              <p className="text-sm text-muted-foreground">{addr.postalCode} {addr.city}, {addr.country}</p>
                             </div>
                           </div>
-                          {addr.isDefault && (
-                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                              Par défaut
-                            </span>
-                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-                    {/* Formulaire nouvelle adresse */}
-                {useNewAddress && currentStep === 1 && (
+
+                {useNewAddress && (
                   <>
-                    {/* Prénom / Nom */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="firstName">
-                          {t("checkout.firstName")} <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="firstName"
-                          value={shippingAddress.firstName}
-                          onChange={(e) => setShippingAddress({ ...shippingAddress, firstName: e.target.value })}
-                          placeholder={t("checkout.firstNamePlaceholder")}
-                          required
-                          data-testid="input-first-name"
-                        />
+                        <Label htmlFor="firstName">{t("checkout.firstName")} *</Label>
+                        <Input id="firstName" value={shippingAddress.firstName} onChange={(e) => setShippingAddress({ ...shippingAddress, firstName: e.target.value })} required />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="lastName">
-                          {t("checkout.lastName")} <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="lastName"
-                          value={shippingAddress.lastName}
-                          onChange={(e) => setShippingAddress({ ...shippingAddress, lastName: e.target.value })}
-                          placeholder={t("checkout.lastNamePlaceholder")}
-                          required
-                          data-testid="input-last-name"
-                        />
+                        <Label htmlFor="lastName">{t("checkout.lastName")} *</Label>
+                        <Input id="lastName" value={shippingAddress.lastName} onChange={(e) => setShippingAddress({ ...shippingAddress, lastName: e.target.value })} required />
                       </div>
                     </div>
 
-                    {/* Email (toujours visible) */}
                     <div className="space-y-2">
-                      <Label htmlFor="email">
-                        Email <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={shippingAddress.email}
-                        onChange={(e) => setShippingAddress({ ...shippingAddress, email: e.target.value })}
-                        placeholder="votre@email.com"
-                        required
-                        data-testid="input-email"
-                      />
+                      <Label htmlFor="email">Email *</Label>
+                      <Input id="email" type="email" value={shippingAddress.email} onChange={(e) => setShippingAddress({ ...shippingAddress, email: e.target.value })} required />
                     </div>
 
-                    {/* Téléphone */}
                     <div className="space-y-2">
-                      <Label htmlFor="phone">
-                        Téléphone <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        value={(shippingAddress as any).phone || ""}
-                        onChange={(e) => setShippingAddress({ ...shippingAddress, ...(shippingAddress as any), phone: e.target.value } as any)}
-                        placeholder="+33 6 XX XX XX XX"
-                        required
-                        data-testid="input-phone"
-                      />
+                      <Label htmlFor="address">{t("checkout.address")} *</Label>
+                      <Input id="address" value={shippingAddress.address} onChange={(e) => setShippingAddress({ ...shippingAddress, address: e.target.value })} required />
                     </div>
 
-                    {/* Adresse */}
-                    <div className="space-y-2">
-                      <Label htmlFor="address">
-                        {t("checkout.address")} <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="address"
-                        value={shippingAddress.address}
-                        onChange={(e) => setShippingAddress({ ...shippingAddress, address: e.target.value })}
-                        placeholder={t("checkout.addressPlaceholder")}
-                        required
-                        data-testid="input-address"
-                      />
-                    </div>
-
-                    {/* Complément (optionnel, pas d'étoile) */}
-                    <div className="space-y-2">
-                      <Label htmlFor="addressLine2">{t("checkout.addressLine2")}</Label>
-                      <Input
-                        id="addressLine2"
-                        value={shippingAddress.addressLine2}
-                        onChange={(e) => setShippingAddress({ ...shippingAddress, addressLine2: e.target.value })}
-                        placeholder={t("checkout.addressLine2Placeholder")}
-                        data-testid="input-address-line-2"
-                      />
-                    </div>
-
-                    {/* Code postal / Ville */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="postalCode">
-                          {t("checkout.postalCode")} <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="postalCode"
-                          value={shippingAddress.postalCode}
-                          onChange={(e) => setShippingAddress({ ...shippingAddress, postalCode: e.target.value })}
-                          placeholder={t("checkout.postalCodePlaceholder")}
-                          required
-                          data-testid="input-postal-code"
-                        />
+                        <Label htmlFor="postalCode">{t("checkout.postalCode")} *</Label>
+                        <Input id="postalCode" value={shippingAddress.postalCode} onChange={(e) => setShippingAddress({ ...shippingAddress, postalCode: e.target.value })} required />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="city">
-                          {t("checkout.city")} <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="city"
-                          value={shippingAddress.city}
-                          onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })}
-                          placeholder={t("checkout.cityPlaceholder")}
-                          required
-                          data-testid="input-city"
-                        />
+                        <Label htmlFor="city">{t("checkout.city")} *</Label>
+                        <Input id="city" value={shippingAddress.city} onChange={(e) => setShippingAddress({ ...shippingAddress, city: e.target.value })} required />
                       </div>
                     </div>
 
-                    {/* Pays */}
                     <div className="space-y-2">
-                      <Label htmlFor="country">
-                        {t("checkout.country")} <span className="text-red-500">*</span>
-                      </Label>
-                      <select
-                        id="country"
-                        value={shippingAddress.country}
-                        onChange={(e) => setShippingAddress({ ...shippingAddress, country: e.target.value })}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        data-testid="select-country"
-                        required
-                      >
-                        <option value="CH">🇨🇭 Suisse / Schweiz / Switzerland</option>
+                      <Label htmlFor="country">{t("checkout.country")} *</Label>
+                      <select id="country" value={shippingAddress.country} onChange={(e) => setShippingAddress({ ...shippingAddress, country: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background" required>
                         <option value="FR">🇫🇷 France</option>
-                        <option value="DE">🇩🇪 Deutschland / Germany</option>
-                        <option value="IT">🇮🇹 Italia / Italy</option>
-                        <option value="AT">🇦🇹 Österreich / Austria</option>
-                        <option value="BE">🇧🇪 Belgique / België / Belgium</option>
-                        <option value="LU">🇱🇺 Luxembourg</option>
-                        <option value="NL">🇳🇱 Nederland / Netherlands</option>
-                        <option value="ES">🇪🇸 España / Spain</option>
-                        <option value="PT">🇵🇹 Portugal</option>
-                        <option value="GB">🇬🇧 United Kingdom</option>
-                        <option value="IE">🇮🇪 Ireland</option>
+                        <option value="CH">🇨🇭 Suisse</option>
+                        <option value="BE">🇧🇪 Belgique</option>
+                        <option value="CA">🇨🇦 Canada</option>
+                        <option value="US">🇺🇸 USA</option>
                       </select>
                     </div>
                   </>
                 )}
-                    {error && (
-                      <p className="text-sm text-destructive" data-testid="text-error">
-                        {error}
-                      </p>
-                    )}
-                    <Button
-                      onClick={async () => {
-                        const address = useNewAddress
-                          ? shippingAddress
-                          : savedAddresses.find(a => a.id === selectedAddressId);
-                        if (!address) {
-                          setError("Veuillez sélectionner ou renseigner une adresse");
-                          return;
-                        }
-                        if (!address.firstName || !address.lastName || !address.address || !address.city || !address.postalCode) {
-                          setError(t("checkout.addressRequired"));
-                          return;
-                        }
-                        setError("");
-                        await fetchShippingRates(address);
-                        setCurrentStep(2);
-                      }}
-                      disabled={loadingRates}
-                      className="w-full"
-                    >
-                      {loadingRates ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Calcul en cours...
-                        </>
-                      ) : (
-                        "Suivant"
-                      )}
-                    </Button>
-                  </>
-                ) : (
-                  (() => {
-                    const addr = useNewAddress ? shippingAddress : savedAddresses.find(a => a.id === selectedAddressId);
-                    return addr ? (
-                      <div className="text-sm">
-                        <p className="font-medium">{addr.firstName} {addr.lastName}</p>
-                        <p className="text-muted-foreground">{addr.address}</p>
-                        {addr.addressLine2 && <p className="text-muted-foreground">{addr.addressLine2}</p>}
-                        <p className="text-muted-foreground">{addr.postalCode} {addr.city}, {addr.country}</p>
-                        {useNewAddress && shippingAddress.email && <p className="text-muted-foreground">{shippingAddress.email}</p>}
-                        {useNewAddress && (shippingAddress as any).phone && <p className="text-muted-foreground">{(shippingAddress as any).phone}</p>}
-                      </div>
-                    ) : null;
-                  })()
-                )}
-              </CardContent>
-            </Card>
 
-            {/* ETAPE 2: LIVRAISON */}
-            <Card className={currentStep < 2 ? 'opacity-50 pointer-events-none' : ''}>
-              <CardHeader className="pb-4">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl">2. Mode de livraison</CardTitle>
-                  {currentStep > 2 && (
-                    <Button variant="ghost" size="sm" onClick={() => setCurrentStep(2)}>
-                      Modifier
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {currentStep < 2 ? (
-                  <p className="text-sm text-muted-foreground">Veuillez d'abord valider votre adresse de livraison.</p>
-                ) : currentStep === 2 ? (
-                  <>
-                    <div className="space-y-4">
-                      {loadingRates ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                        </div>
-                      ) : shippingRates.length > 0 ? (
-                        <div className="space-y-2">
-                          {shippingRates.map((rate) => (
-                            <div
-                              key={rate.rateId}
-                              onClick={() => setSelectedRate(rate)}
-                              className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedRate?.rateId === rate.rateId
-                                ? 'border-primary bg-primary/5'
-                                : 'border-border hover:border-primary/50'
-                                }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                  <div className="font-medium">{rate.carrier} - {rate.service}</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    Livraison estimée: {rate.rateId.includes('_fr_') || rate.rateId.includes('-fr-') ? '2-4' : '3-5'} jours
-                                  </div>
-                                </div>
-                                <div className="text-lg font-bold">
-                                  {parseFloat(rate.amount).toFixed(2)} €
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Aucune option de livraison disponible</p>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-2 border rounded-lg p-4 bg-muted/20 mt-4">
-                      <Label className="font-semibold">Code promo</Label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={promoCode}
-                          onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                          placeholder="BIENVENUE"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm uppercase placeholder:normal-case"
-                          data-testid="input-promo-code"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={applyPromoCode}
-                          disabled={promoLoading || !promoCode.trim()}
-                        >
-                          {promoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Appliquer"}
-                        </Button>
-                      </div>
-                      {promoError && <p className="text-sm text-destructive">{promoError}</p>}
-                      {appliedDiscount && (
-                        <p className="text-sm text-green-600 font-medium">
-                          ✓ Code <strong>{appliedDiscount.code}</strong> appliqué : -{appliedDiscount.discountAmount.toFixed(2)} €
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2 mt-4">
-                      <Button
-                        onClick={() => setCurrentStep(1)}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        Retour
-                      </Button>
-                      <Button
-                        onClick={handleContinueToPayment}
-                        disabled={!selectedRate || loading}
-                        className="flex-1"
-                        data-testid="button-continue-payment"
-                      >
-                        {loading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            {t("checkout.processing")}
-                          </>
-                        ) : (
-                          t("checkout.continueToPayment")
-                        )}
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  selectedRate ? (
-                    <div className="text-sm">
-                      <p className="font-medium">{selectedRate.carrier} - {selectedRate.service}</p>
-                      <p className="text-muted-foreground">Livraison estimée : {selectedRate.rateId.includes('_fr_') || selectedRate.rateId.includes('-fr-') ? '2-4' : '3-5'} jours</p>
-                      <p className="font-medium mt-1">{parseFloat(selectedRate.amount).toFixed(2)} €</p>
-                    </div>
-                  ) : null
-                )}
-              </CardContent>
-            </Card>
-
-            {/* ETAPE 3: PAIEMENT */}
-            <Card className={currentStep < 3 ? 'opacity-50 pointer-events-none' : ''}>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-xl">3. Paiement</CardTitle>
-                <CardDescription>{t("checkout.securePayment")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {currentStep < 3 ? (
-                  <p className="text-sm text-muted-foreground">Veuillez valider vos options de livraison pour procéder au paiement.</p>
-                ) : (
-                  clientSecret && stripePromise && (
-                    <Elements
-                      key={clientSecret}
-                      options={options}
-                      stripe={stripePromise}
-                    >
-                      <CheckoutForm />
-                    </Elements>
-                  )
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                
+                {!clientSecret && (
+                  <Button onClick={handleContinueToPayment} disabled={loading} className="w-full">
+                    {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Validation...</> : "Continuer vers le paiement"}
+                  </Button>
                 )}
               </CardContent>
             </Card>
           </div>
+
           <div>
-            <Card>
+            <Card className="sticky top-6">
               <CardHeader>
                 <CardTitle>{t("checkout.orderSummary")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {cartItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex justify-between items-start"
-                    data-testid={`order-item-${item.id}`}
-                  >
+                  <div key={item.id} className="flex justify-between items-start">
                     <div className="flex-1">
-                      <p className="font-medium">{item.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {t("checkout.quantity")}: {item.quantity}
-                      </p>
+                      <p className="font-medium text-sm">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{t("checkout.quantity")}: {item.quantity}</p>
                     </div>
-                    <p className="font-medium">
+                    <p className="font-medium text-sm">
                       {getCurrencySymbol(currency)} {convertPrice(item.price * item.quantity, currency).toFixed(2)}
                     </p>
                   </div>
                 ))}
-                <div className="border-t pt-4 space-y-2">
+
+                <div className="space-y-2 border-t pt-4">
+                  <Label className="text-sm font-semibold">Code promo</Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                      placeholder="ENTREZ LE CODE"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm uppercase placeholder:normal-case"
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={applyPromoCode} disabled={promoLoading || !promoCode.trim()}>
+                      {promoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Tester"}
+                    </Button>
+                  </div>
+                  {promoError && <p className="text-xs text-destructive">{promoError}</p>}
+                  {appliedDiscount && (
+                    <p className="text-xs text-green-600 font-medium">
+                      ✓ Code {appliedDiscount.code} appliqué : -{appliedDiscount.discountAmount.toFixed(2)} €
+                    </p>
+                  )}
+                </div>
+
+                <div className="border-t pt-4 space-y-2 text-sm">
                   <div className="flex justify-between items-center">
                     <span>{t("checkout.subtotal")}</span>
-                    <span data-testid="subtotal-amount">
-                      {getCurrencySymbol(currency)} {convertPrice(subtotal, currency).toFixed(2)}
-                    </span>
+                    <span>{getCurrencySymbol(currency)} {convertPrice(subtotal, currency).toFixed(2)}</span>
                   </div>
-                  {selectedRate && (
-                    <div className="flex justify-between items-center">
-                      <span>{t("checkout.shipping")}</span>
-                      <span data-testid="shipping-amount">
-                        {parseFloat(selectedRate.amount).toFixed(2)} €
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex justify-between items-center">
+                    <span>Frais de port ({localShippingDays})</span>
+                    <span>{localShippingCost === 0 ? "Gratuit" : `${localShippingCost.toFixed(2)} €`}</span>
+                  </div>
                   {appliedDiscount && (
                     <div className="flex justify-between items-center text-green-600">
-                      <span>Code promo ({appliedDiscount.code})</span>
-                      <span data-testid="discount-amount">-{appliedDiscount.discountAmount.toFixed(2)} €</span>
+                      <span>Réduction</span>
+                      <span>-{appliedDiscount.discountAmount.toFixed(2)} €</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center font-bold text-lg border-t pt-2">
                     <span>{t("checkout.total")}</span>
-                    <span data-testid="total-amount">
+                    <span>
                       {getCurrencySymbol(currency)} {(
-                        convertPrice(
-                          subtotal - (appliedDiscount?.discountAmount || 0),
-                          currency
-                        ) + (selectedRate ? parseFloat(selectedRate.amount) : 0)
+                        convertPrice(subtotal - (appliedDiscount?.discountAmount || 0), currency) 
+                        + localShippingCost
                       ).toFixed(2)}
                     </span>
                   </div>
                 </div>
+
+                {clientSecret && stripePromise && (
+                  <div className="mt-6 border-t pt-6">
+                    <h3 className="font-semibold text-lg mb-4 text-center">Sélectionnez votre moyen de paiement</h3>
+                    <Elements key={clientSecret} options={options} stripe={stripePromise}>
+                      <CheckoutForm />
+                    </Elements>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

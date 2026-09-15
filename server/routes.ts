@@ -783,13 +783,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/create-payment-intent", optionalAuth, async (req: AuthRequest, res) => {
     try {
-      const { items, shippingAddress, shippingAddressId, currency = 'EUR', guestEmail } = req.body;
+      const { items, shippingAddress, shippingAddressId, currency = 'EUR', guestEmail, discountCode } = req.body;
 
       console.log('📦 Payment Intent Request:', {
         itemsCount: items?.length,
         hasShippingAddress: !!shippingAddress,
         hasShippingAddressId: !!shippingAddressId,
         shippingAddressId,
+        discountCode,
       });
 
       if (!items || !Array.isArray(items) || items.length === 0) {
@@ -870,9 +871,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
 
-      // Les prix en DB sont en EUR. Frais de livraison déjà en EUR (Shippo FR).
-      const shippingCost = parseFloat(req.body.shippingCost || "0");
-      const totalInEUR = totalAmount + shippingCost;
+      // Appliquer le code promo s'il y en a un
+      let discountAmount = 0;
+      if (discountCode) {
+        try {
+          const discount = await discountService.validateCode(discountCode, "");
+          discountAmount = await discountService.calculateDiscount(totalAmount, discount);
+          totalAmount -= discountAmount;
+          if (totalAmount < 0) totalAmount = 0;
+        } catch (e) {
+          console.warn("Invalid discount code passed to payment intent:", discountCode);
+        }
+      }
+
+      // Règles de livraison fixes
+      let computedShippingCost = 9.90; // Default outside France
+      let estimatedDeliveryDays = "3-5";
+      
+      let addr = shippingAddress;
+      if (shippingAddressId) {
+        addr = await shippingAddressRepo.findById(shippingAddressId);
+      }
+      
+      if (addr?.country === "FR") {
+        computedShippingCost = 0;
+        const postalCode = addr.postalCode || "";
+        const idfDepts = ["75", "77", "78", "91", "92", "93", "94", "95"];
+        if (idfDepts.some(d => postalCode.startsWith(d))) {
+          estimatedDeliveryDays = "1-2";
+        } else {
+          estimatedDeliveryDays = "2-3";
+        }
+      }
+
+      const totalInEUR = totalAmount + computedShippingCost;
 
       // Conversion selon la devise demandée
       let finalAmount = totalInEUR;
@@ -916,16 +948,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? { shippingAddressId }
             : { shippingAddress: JSON.stringify(shippingAddress) }
           ),
-          shippingCost: req.body.shippingCost || "0",
-          shippingCarrier: req.body.shippingCarrier || "",
-          shippingService: req.body.shippingService || "",
-          estimatedDeliveryDays: req.body.estimatedDeliveryDays?.toString() || "0",
+          shippingCost: computedShippingCost.toString(),
+          shippingCarrier: "Standard",
+          shippingService: "Delivery",
+          estimatedDeliveryDays: estimatedDeliveryDays,
+          discountCode: discountCode || "",
+          discountAmount: discountAmount.toString(),
         },
       });
 
       res.json({
         clientSecret: paymentIntent.client_secret,
         totalAmount: totalAmount.toFixed(2),
+        shippingCost: computedShippingCost,
+        estimatedDeliveryDays,
       });
     } catch (error: any) {
       console.error("Stripe payment intent error:", error);
