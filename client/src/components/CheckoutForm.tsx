@@ -103,11 +103,7 @@ export default function CheckoutForm() {
       <div className={!isReady ? "invisible h-0" : "visible"}>
         <PaymentElement 
           options={{
-            layout: 'accordion',
-            wallets: { 
-              applePay: 'auto', 
-              googlePay: 'auto' 
-            }
+            layout: 'tabs',
           }}
           onReady={() => setIsReady(true)} 
         />

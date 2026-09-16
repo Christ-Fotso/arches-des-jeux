@@ -923,10 +923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const paymentIntentOptions: Record<string, any> = {
-        automatic_payment_methods: {
-          enabled: true,
-          allow_redirects: "never",
-        },
+        payment_method_types: ['card', 'klarna'],
       };
 
       if (stripeCustomerId) {

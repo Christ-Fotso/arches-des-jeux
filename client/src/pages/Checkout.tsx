@@ -320,6 +320,8 @@ export default function Checkout() {
         },
       }
     },
+    // Désactiver Link complètement et contrôler les moyens de paiement affichés
+    payment_method_types: ['card', 'apple_pay', 'google_pay', 'klarna'],
   };
 
   const isAddressValid = () => {
