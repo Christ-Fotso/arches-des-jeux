@@ -934,7 +934,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (stripeCustomerId) {
         paymentIntentOptions.customer = stripeCustomerId;
-        paymentIntentOptions.setup_future_usage = "off_session";
+        // ATTENTION: On ne met PAS setup_future_usage = "off_session" 
+        // car cela bloque l'affichage de Apple Pay et Google Pay !
       } else if (guestEmail || shippingAddress?.email) {
         paymentIntentOptions.receipt_email = guestEmail || shippingAddress.email;
       }
