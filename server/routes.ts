@@ -923,7 +923,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const paymentIntentOptions: Record<string, any> = {
-        payment_method_types: ['card'],
+        automatic_payment_methods: {
+          enabled: true,
+          allow_redirects: "never",
+        },
       };
 
       if (stripeCustomerId) {
