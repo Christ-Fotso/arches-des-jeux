@@ -1372,6 +1372,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST /api/admin/inbox/send — Envoyer un NOUVEAU mail
+  app.post("/api/admin/inbox/send", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { toEmail, subject, body } = req.body;
+
+      if (!toEmail || !subject || !body?.trim()) {
+        return res.status(400).json({ error: 'Destinataire, sujet et message sont requis' });
+      }
+
+      // Utilise le même design HTML que sendInboxReply mais sans l'encart message original
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto;">
+          <div style="background-color: #1a1a1a; color: #fff; padding: 20px 24px; border-radius: 8px 8px 0 0;">
+            <p style="margin: 0; font-size: 13px; color: #aaa;">L'Arche des Jeux — Nouveau message</p>
+          </div>
+          <div style="padding: 24px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+            <div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6; margin: 16px 0;">
+              ${body.trim().replace(/\n/g, '<br>')}
+            </div>
+            <p style="margin-top: 24px;">Cordialement,<br><strong>L'équipe L'Arche des Jeux</strong></p>
+          </div>
+        </div>
+      `;
+
+      if (!emailService['resend']) {
+          return res.status(500).json({ error: 'Service email non configuré' });
+      }
+
+      const { error } = await emailService['resend'].emails.send({
+        from: emailService['fromEmail'],
+        to: toEmail.trim(),
+        subject: subject.trim(),
+        html: htmlContent,
+      });
+
+      if (error) {
+        console.error('❌ Erreur envoi nouveau message:', error);
+        return res.status(500).json({ error: 'Échec de l\'envoi du message' });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // POST /api/admin/inbox/:id/reply — Répondre à un email
   app.post("/api/admin/inbox/:id/reply", authenticate, requireAdmin, async (req: AuthRequest, res) => {
     try {

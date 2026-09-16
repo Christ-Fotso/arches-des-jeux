@@ -2,6 +2,8 @@ import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import {
   helmetConfig,
   globalRateLimiter,
@@ -70,6 +72,30 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // ─── AUTO-MIGRATION ──────────────────────────────────────────────
+  // S'assurer que la table inbound_emails existe en production
+  // car db:push n'est pas forcément lancé au redéploiement
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS inbound_emails (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        from_email TEXT NOT NULL,
+        from_name TEXT,
+        subject TEXT NOT NULL DEFAULT '(Sans objet)',
+        body_text TEXT,
+        body_html TEXT,
+        message_id TEXT UNIQUE,
+        is_read BOOLEAN NOT NULL DEFAULT false,
+        replied_at TIMESTAMP,
+        reply_body TEXT,
+        received_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    log("✅ Vérification de la base de données : table inbound_emails prête.");
+  } catch (err) {
+    console.error("❌ Erreur lors de la vérification de la table inbound_emails :", err);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

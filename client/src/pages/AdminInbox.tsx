@@ -3,9 +3,12 @@ import AdminLayout from "@/layouts/AdminLayout";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Mail, MailOpen, Reply, RefreshCw, Inbox, ArrowLeft } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Loader2, Mail, MailOpen, Reply, RefreshCw, Inbox, ArrowLeft, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -31,6 +34,13 @@ export default function AdminInbox() {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [showDetail, setShowDetail] = useState(false); // mobile: show detail panel
+
+  // Composer modal state
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [composeTo, setComposeTo] = useState("");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeBody, setComposeBody] = useState("");
+  const [sendingCompose, setSendingCompose] = useState(false);
 
   const loadEmails = async () => {
     setLoading(true);
@@ -96,6 +106,33 @@ export default function AdminInbox() {
     }
   };
 
+  const handleSendCompose = async () => {
+    if (!composeTo.trim() || !composeSubject.trim() || !composeBody.trim()) {
+      return toast({ variant: "destructive", title: "Erreur", description: "Veuillez remplir tous les champs" });
+    }
+    
+    setSendingCompose(true);
+    try {
+      const res = await apiRequest("POST", `/api/admin/inbox/send`, {
+        toEmail: composeTo.trim(),
+        subject: composeSubject.trim(),
+        body: composeBody.trim(),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur lors de l'envoi");
+
+      toast({ title: "✅ Message envoyé !", description: `Email envoyé à ${composeTo}` });
+      setIsComposeOpen(false);
+      setComposeTo("");
+      setComposeSubject("");
+      setComposeBody("");
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Erreur", description: err.message });
+    } finally {
+      setSendingCompose(false);
+    }
+  };
+
   const unreadCount = emails.filter(e => !e.isRead).length;
 
   const formatDate = (dateStr: string) => {
@@ -129,10 +166,16 @@ export default function AdminInbox() {
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={loadEmails} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Actualiser
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setIsComposeOpen(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Nouveau message
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadEmails} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Actualiser
+            </Button>
+          </div>
         </div>
 
         {/* Main layout: 2 panels */}
@@ -155,9 +198,17 @@ export default function AdminInbox() {
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
             ) : emails.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground p-6">
-                <MailOpen className="w-12 h-12 opacity-30" />
-                <p className="text-sm text-center">Aucun email reçu pour l'instant</p>
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground p-6 text-center">
+                <div className="p-4 bg-muted/20 rounded-full">
+                  <MailOpen className="w-10 h-10 opacity-40" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Votre boîte est vide</p>
+                  <p className="text-sm mt-1">Les messages reçus apparaîtront ici.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setIsComposeOpen(true)} className="mt-2">
+                  <Plus className="w-4 h-4 mr-2" /> Écrire un message
+                </Button>
               </div>
             ) : (
               <ul className="flex-1 overflow-y-auto divide-y">
@@ -217,14 +268,17 @@ export default function AdminInbox() {
             ${showDetail ? 'flex' : 'hidden md:flex'}
           `}>
             {!selectedEmail ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-muted-foreground text-center p-6">
                 <div className="p-6 bg-muted/20 rounded-2xl">
                   <Mail className="w-16 h-16 opacity-20" />
                 </div>
-                <div className="text-center">
-                  <p className="font-medium">Sélectionnez un email</p>
-                  <p className="text-sm">Cliquez sur un message dans la liste pour le lire</p>
+                <div>
+                  <p className="font-medium text-foreground text-lg">Sélectionnez un email</p>
+                  <p className="text-sm mt-1">Cliquez sur un message dans la liste pour le lire</p>
                 </div>
+                <Button onClick={() => setIsComposeOpen(true)} variant="secondary" className="mt-4">
+                  <Plus className="w-4 h-4 mr-2" /> Écrire un nouveau message
+                </Button>
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden">
@@ -310,6 +364,61 @@ export default function AdminInbox() {
           </div>
         </div>
       </div>
+
+      {/* MODAL NOUVEAU MESSAGE */}
+      <Dialog open={isComposeOpen} onOpenChange={setIsComposeOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Nouveau message</DialogTitle>
+            <DialogDescription>
+              Envoyez un email depuis contact@larchedesjeux.fr
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="toEmail">Destinataire</Label>
+              <Input
+                id="toEmail"
+                type="email"
+                placeholder="client@exemple.com"
+                value={composeTo}
+                onChange={(e) => setComposeTo(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="subject">Sujet</Label>
+              <Input
+                id="subject"
+                placeholder="Sujet de votre email"
+                value={composeSubject}
+                onChange={(e) => setComposeSubject(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="body">Message</Label>
+              <Textarea
+                id="body"
+                placeholder="Écrivez votre message ici..."
+                className="min-h-[200px]"
+                value={composeBody}
+                onChange={(e) => setComposeBody(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsComposeOpen(false)} disabled={sendingCompose}>
+              Annuler
+            </Button>
+            <Button onClick={handleSendCompose} disabled={sendingCompose || !composeTo || !composeSubject || !composeBody}>
+              {sendingCompose ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Envoi...</>
+              ) : (
+                <><Mail className="w-4 h-4 mr-2" /> Envoyer</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
