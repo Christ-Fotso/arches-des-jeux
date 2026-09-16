@@ -29,8 +29,8 @@ import { shippingService } from "./services/shipping.service";
 import { emailService } from "./services/email.service";
 import crypto from "crypto";
 import { db } from "./db";
-import { products, users as usersTable } from "@shared/schema";
-import { inArray, eq } from "drizzle-orm";
+import { products, users as usersTable, inboundEmails } from "@shared/schema";
+import { inArray, eq, desc } from "drizzle-orm";
 
 
 // Lire la clé Stripe depuis Docker secret si disponible
@@ -1283,20 +1283,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/webhooks/resend", async (req, res) => {
     try {
       const payload = req.body;
-      
-      // Resend envoie un type d'événement, par exemple "email.received"
+
       if (payload && payload.type === "email.received" && payload.data) {
-        console.log(`📩 Webhook Resend reçu : nouvel email de ${payload.data.from}`);
-        await emailService.forwardInboundEmail(payload.data);
+        const data = payload.data;
+        const fromRaw: string = data.from || 'inconnu';
+        // Extraire nom et email depuis "Prénom NOM <email@domain>" ou juste "email@domain"
+        const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
+        const fromName = fromMatch ? fromMatch[1].trim() : null;
+        const fromEmail = fromMatch ? fromMatch[2].trim() : fromRaw.trim();
+
+        console.log(`📩 Webhook Resend reçu : nouvel email de ${fromEmail}`);
+
+        // 1. Stocker en base (boîte mail admin)
+        try {
+          await db.insert(inboundEmails).values({
+            fromEmail,
+            fromName,
+            subject: data.subject || '(Sans objet)',
+            bodyText: data.text || null,
+            bodyHtml: data.html || null,
+            messageId: data.message_id || null,
+          });
+          console.log(`✅ Email de ${fromEmail} sauvegardé en base`);
+        } catch (dbErr) {
+          console.error('❌ Erreur sauvegarde email en base:', dbErr);
+        }
+
+        // 2. Transférer vers Gmail (comportement existant)
+        await emailService.forwardInboundEmail(data);
       } else {
         console.warn("⚠️ Webhook Resend ignoré : format ou type non reconnu");
       }
 
-      // Toujours répondre 200 OK pour que Resend ne réessaie pas
       res.status(200).send("OK");
     } catch (error) {
       console.error("❌ Erreur dans le Webhook Resend :", error);
       res.status(500).send("Error");
+    }
+  });
+
+  // ─── ADMIN INBOX : Boîte mail intégrée ────────────────────────────────────
+
+  // GET /api/admin/inbox — Liste tous les emails reçus
+  app.get("/api/admin/inbox", requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const emails = await db
+        .select()
+        .from(inboundEmails)
+        .orderBy(desc(inboundEmails.receivedAt));
+      res.json(emails);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/admin/inbox/unread-count — Nombre d'emails non lus
+  app.get("/api/admin/inbox/unread-count", requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const all = await db.select().from(inboundEmails);
+      const count = all.filter(e => !e.isRead).length;
+      res.json({ count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GET /api/admin/inbox/:id — Détail d'un email + marquer comme lu
+  app.get("/api/admin/inbox/:id", requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const [email] = await db.select().from(inboundEmails).where(eq(inboundEmails.id, id));
+      if (!email) return res.status(404).json({ error: 'Email non trouvé' });
+
+      // Marquer comme lu
+      if (!email.isRead) {
+        await db.update(inboundEmails).set({ isRead: true }).where(eq(inboundEmails.id, id));
+      }
+
+      res.json({ ...email, isRead: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // POST /api/admin/inbox/:id/reply — Répondre à un email
+  app.post("/api/admin/inbox/:id/reply", requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { replyBody } = req.body;
+
+      if (!replyBody?.trim()) {
+        return res.status(400).json({ error: 'Le message de réponse est requis' });
+      }
+
+      const [email] = await db.select().from(inboundEmails).where(eq(inboundEmails.id, id));
+      if (!email) return res.status(404).json({ error: 'Email non trouvé' });
+
+      // Envoyer la réponse via Resend
+      const sent = await emailService.sendInboxReply({
+        toEmail: email.fromEmail,
+        toName: email.fromName || email.fromEmail,
+        originalSubject: email.subject,
+        originalBody: email.bodyText || '',
+        replyBody: replyBody.trim(),
+      });
+
+      if (!sent) {
+        return res.status(500).json({ error: 'Échec de l\'envoi de la réponse' });
+      }
+
+      // Mettre à jour en base
+      await db.update(inboundEmails)
+        .set({ repliedAt: new Date(), replyBody: replyBody.trim(), isRead: true })
+        .where(eq(inboundEmails.id, id));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

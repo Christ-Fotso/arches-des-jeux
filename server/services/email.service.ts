@@ -548,6 +548,72 @@ class EmailService {
       return false;
     }
   }
+  /**
+   * Répond à un email reçu depuis la boîte mail admin
+   */
+  async sendInboxReply({
+    toEmail,
+    toName,
+    originalSubject,
+    originalBody,
+    replyBody,
+  }: {
+    toEmail: string;
+    toName: string;
+    originalSubject: string;
+    originalBody: string;
+    replyBody: string;
+  }): Promise<boolean> {
+    if (!this.resend) return false;
+
+    const replySubject = originalSubject.startsWith('Re:')
+      ? originalSubject
+      : `Re: ${originalSubject}`;
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto;">
+        <div style="background-color: #1a1a1a; color: #fff; padding: 20px 24px; border-radius: 8px 8px 0 0;">
+          <p style="margin: 0; font-size: 13px; color: #aaa;">L'Arche des Jeux — Réponse à votre message</p>
+        </div>
+
+        <div style="padding: 24px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+          <p>Bonjour ${toName},</p>
+          <div style="white-space: pre-wrap; font-size: 15px; line-height: 1.6; margin: 16px 0;">
+            ${replyBody.replace(/\n/g, '<br>')}
+          </div>
+
+          <p style="margin-top: 24px;">Cordialement,<br><strong>L'équipe L'Arche des Jeux</strong></p>
+
+          ${originalBody ? `
+          <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+          <p style="color: #999; font-size: 12px; margin-bottom: 8px;">— Message original —</p>
+          <blockquote style="color: #666; font-size: 13px; border-left: 3px solid #ddd; padding-left: 12px; margin: 0;">
+            ${originalBody.substring(0, 500).replace(/\n/g, '<br>')}${originalBody.length > 500 ? '...' : ''}
+          </blockquote>` : ''}
+        </div>
+      </div>
+    `;
+
+    try {
+      const { error } = await this.resend.emails.send({
+        from: this.fromEmail,
+        to: toEmail,
+        subject: replySubject,
+        html: htmlContent,
+      });
+
+      if (error) {
+        console.error('❌ Erreur envoi réponse inbox:', error);
+        return false;
+      }
+
+      console.log(`✅ Réponse inbox envoyée à ${toEmail}`);
+      return true;
+    } catch (err) {
+      console.error('❌ Exception réponse inbox:', err);
+      return false;
+    }
+  }
 }
 
 export const emailService = new EmailService();

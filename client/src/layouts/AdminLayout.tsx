@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,11 @@ import {
     Tag,
     Percent,
     Menu,
-    X,
     ShoppingCart,
-    Mail
+    Mail,
+    Inbox
 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 interface AdminLayoutProps {
     children: ReactNode;
@@ -23,12 +24,21 @@ const menuItems = [
     { icon: Package, label: "Produits", href: "/admin/products" },
     { icon: ShoppingCart, label: "Commandes", href: "/admin/orders" },
     { icon: Mail, label: "Messagerie", href: "/admin/messages" },
+    { icon: Inbox, label: "Bo\u00eete mail", href: "/admin/inbox", unreadKey: true },
     { icon: Tag, label: "Marques", href: "/admin/brands" },
     { icon: Percent, label: "Promotions", href: "/admin/discounts" },
 ];
 
 function Sidebar({ className }: { className?: string }) {
     const [location] = useLocation();
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    useEffect(() => {
+        apiRequest("GET", "/api/admin/inbox/unread-count")
+            .then(r => r.json())
+            .then(d => setUnreadCount(d.count || 0))
+            .catch(() => {});
+    }, [location]); // re-fetch when navigating
 
     return (
         <div className={cn("flex flex-col gap-2", className)}>
@@ -52,7 +62,12 @@ function Sidebar({ className }: { className?: string }) {
                                 )}
                             >
                                 <Icon className="w-5 h-5" />
-                                <span className="font-medium">{item.label}</span>
+                                <span className="font-medium flex-1">{item.label}</span>
+                                {(item as any).unreadKey && unreadCount > 0 && (
+                                    <span className="ml-auto bg-destructive text-destructive-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
                             </a>
                         </Link>
                     );

@@ -22,6 +22,7 @@ import AdminBrands from "@/pages/AdminBrands";
 import AdminProducts from "@/pages/AdminProducts";
 import AdminOrders from "@/pages/AdminOrders";
 import AdminMessages from "@/pages/AdminMessages";
+import AdminInbox from "@/pages/AdminInbox";
 import DiscountManagement from "@/pages/DiscountManagement";
 import Checkout from "@/pages/Checkout";
 import CheckoutSuccess from "@/pages/CheckoutSuccess";
@@ -64,6 +65,7 @@ function Router() {
         <Route path="/admin/products" component={AdminProducts} />
         <Route path="/admin/orders" component={AdminOrders} />
         <Route path="/admin/messages" component={AdminMessages} />
+        <Route path="/admin/inbox" component={AdminInbox} />
         <Route path="/admin/discounts" component={DiscountManagement} />
         <Route path="/admin/brands" component={AdminBrands} />
         <Route path="/checkout" component={Checkout} />

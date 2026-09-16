@@ -147,6 +147,22 @@ export const supportMessages = pgTable("support_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Table pour la boîte mail admin (emails reçus via Resend webhook)
+export const inboundEmails = pgTable("inbound_emails", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromEmail: text("from_email").notNull(),
+  fromName: text("from_name"),
+  subject: text("subject").notNull().default("(Sans objet)"),
+  bodyText: text("body_text"),
+  bodyHtml: text("body_html"),
+  messageId: text("message_id").unique(), // ID Message-ID RFC pour threading
+  isRead: boolean("is_read").notNull().default(false),
+  repliedAt: timestamp("replied_at"),
+  replyBody: text("reply_body"),
+  receivedAt: timestamp("received_at").defaultNow().notNull(),
+});
+
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
@@ -290,6 +306,11 @@ export type InsertDiscountCode = z.infer<typeof insertDiscountCodeSchema>;
 export const insertSupportMessageSchema = createInsertSchema(supportMessages).omit({ id: true, createdAt: true });
 export type SupportMessage = typeof supportMessages.$inferSelect;
 export type InsertSupportMessage = z.infer<typeof insertSupportMessageSchema>;
+
+export const insertInboundEmailSchema = createInsertSchema(inboundEmails).omit({ id: true, receivedAt: true });
+export type InboundEmail = typeof inboundEmails.$inferSelect;
+export type InsertInboundEmail = z.infer<typeof insertInboundEmailSchema>;
+
 
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
