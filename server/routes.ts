@@ -923,12 +923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const paymentIntentOptions: Record<string, any> = {
-        // automatic_payment_methods active Apple Pay, Google Pay, Klarna, etc.
-        // selon ce qui est activé dans le Dashboard Stripe
-        automatic_payment_methods: {
-          enabled: true,
-          allow_redirects: "always",
-        },
+        payment_method_types: ['card', 'klarna', 'amazon_pay'],
       };
 
 

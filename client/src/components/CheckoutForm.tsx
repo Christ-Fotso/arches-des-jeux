@@ -4,6 +4,7 @@ import {
   useStripe,
   useElements,
   PaymentElement,
+  ExpressCheckoutElement,
 } from "@stripe/react-stripe-js";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -103,6 +104,30 @@ export default function CheckoutForm() {
             </span>
           </div>
         )}
+
+        {/* Express Checkout Element (Apple Pay & Google Pay prominent) */}
+        <div className={!isReady ? "invisible h-0 overflow-hidden" : "mb-6"}>
+          <ExpressCheckoutElement 
+            onConfirm={async () => {
+              setIsProcessing(true);
+              const { error } = await stripe!.confirmPayment({
+                elements: elements!,
+                confirmParams: {
+                  return_url: `${window.location.origin}/checkout/success`,
+                },
+              });
+              
+              if (error) {
+                toast({
+                  title: "Erreur",
+                  description: error.message || "Une erreur est survenue avec Apple/Google Pay.",
+                  variant: "destructive",
+                });
+                setIsProcessing(false);
+              }
+            }}
+          />
+        </div>
 
         {/* Stripe Payment Element (Native Accordion) */}
         <div className={!isReady ? "invisible h-0 overflow-hidden" : "min-h-[300px]"}>
