@@ -1331,7 +1331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── ADMIN INBOX : Boîte mail intégrée ────────────────────────────────────
 
   // GET /api/admin/inbox — Liste tous les emails reçus
-  app.get("/api/admin/inbox", requireAdmin, async (req: AuthRequest, res) => {
+  app.get("/api/admin/inbox", authenticate, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const emails = await db
         .select()
@@ -1344,7 +1344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // GET /api/admin/inbox/unread-count — Nombre d'emails non lus
-  app.get("/api/admin/inbox/unread-count", requireAdmin, async (req: AuthRequest, res) => {
+  app.get("/api/admin/inbox/unread-count", authenticate, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const all = await db.select().from(inboundEmails);
       const count = all.filter(e => !e.isRead).length;
@@ -1355,7 +1355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // GET /api/admin/inbox/:id — Détail d'un email + marquer comme lu
-  app.get("/api/admin/inbox/:id", requireAdmin, async (req: AuthRequest, res) => {
+  app.get("/api/admin/inbox/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const { id } = req.params;
       const [email] = await db.select().from(inboundEmails).where(eq(inboundEmails.id, id));
@@ -1373,7 +1373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/admin/inbox/:id/reply — Répondre à un email
-  app.post("/api/admin/inbox/:id/reply", requireAdmin, async (req: AuthRequest, res) => {
+  app.post("/api/admin/inbox/:id/reply", authenticate, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const { id } = req.params;
       const { replyBody } = req.body;
