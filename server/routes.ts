@@ -927,7 +927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // selon ce qui est activé dans le Dashboard Stripe
         automatic_payment_methods: {
           enabled: true,
-          allow_redirects: "never", // évite les redirections (Klarna, etc.)
+          allow_redirects: "always",
         },
       };
 
