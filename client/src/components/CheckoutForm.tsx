@@ -14,52 +14,9 @@ import { Loader2 } from "lucide-react";
 import { FaApplePay, FaCreditCard } from "react-icons/fa";
 import { SiKlarna } from "react-icons/si";
 
-type PaymentMethodId = "card" | "apple_pay" | "klarna";
-
 // ─────────────────────────────────────────────
-// Config des 3 boutons de sélection
+// Checkout Form — Stripe Native UI
 // ─────────────────────────────────────────────
-const PAYMENT_METHODS: {
-  id: PaymentMethodId;
-  label: string;
-  icon: JSX.Element;
-  wrapperClass: string;
-  iconClass: string;
-  labelClass: string;
-  // Options PaymentElement quand cette méthode est sélectionnée
-  wallets: { applePay: "auto" | "never"; googlePay: "auto" | "never" };
-}[] = [
-  {
-    id: "card",
-    label: "Carte bancaire",
-    icon: <FaCreditCard size={40} />,
-    wrapperClass:
-      "bg-white border-2 border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-800",
-    iconClass: "text-slate-600",
-    labelClass: "text-slate-700",
-    wallets: { applePay: "never", googlePay: "never" },
-  },
-  {
-    id: "apple_pay",
-    label: "Apple Pay",
-    icon: <FaApplePay size={60} />,
-    wrapperClass:
-      "bg-black border-2 border-black hover:bg-neutral-800 text-white",
-    iconClass: "text-white",
-    labelClass: "text-white",
-    wallets: { applePay: "auto", googlePay: "never" },
-  },
-  {
-    id: "klarna",
-    label: "Klarna",
-    icon: <SiKlarna size={38} />,
-    wrapperClass:
-      "bg-[#FFB3C7] border-2 border-[#FFB3C7] hover:bg-[#ffa0b8] text-black",
-    iconClass: "text-black",
-    labelClass: "text-black",
-    wallets: { applePay: "never", googlePay: "never" },
-  },
-];
 
 export default function CheckoutForm() {
   const stripe = useStripe();
@@ -71,7 +28,6 @@ export default function CheckoutForm() {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId | null>(null);
 
   // ─── Paiement ──────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
@@ -130,86 +86,42 @@ export default function CheckoutForm() {
     }
   };
 
-  // ─── Sélection du moyen de paiement ────────────────────────
-  const method = PAYMENT_METHODS.find((m) => m.id === selectedMethod);
-
-  if (!selectedMethod) {
-    return (
-      <div className="space-y-4">
-        <p className="text-sm font-semibold text-center text-muted-foreground uppercase tracking-widest">
-          Choisissez votre moyen de paiement
-        </p>
-        <div className="grid grid-cols-1 gap-3">
-          {PAYMENT_METHODS.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => {
-                setIsReady(false);
-                setSelectedMethod(m.id);
-              }}
-              className={`
-                flex items-center gap-4 px-5 py-4 rounded-2xl
-                transition-all duration-200 active:scale-[0.98] shadow-sm
-                ${m.wrapperClass}
-              `}
-            >
-              <span className={m.iconClass}>{m.icon}</span>
-              <span className={`font-semibold text-base ${m.labelClass}`}>
-                {m.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Formulaire Stripe après sélection ─────────────────────
+  // ─── Rendu du formulaire Stripe ────────────────────────────
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Bouton Changer + méthode choisie */}
-      <div className="flex items-center justify-between">
-        <div
-          className={`
-            flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-semibold shadow-sm
-            ${method?.wrapperClass}
-          `}
-        >
-          <span className={method?.iconClass}>{method?.icon}</span>
-          <span className={method?.labelClass}>{method?.label}</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedMethod(null);
-            setIsReady(false);
-          }}
-          className="text-sm text-primary underline underline-offset-2 hover:opacity-75 transition-opacity"
-        >
-          Changer
-        </button>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-center text-muted-foreground uppercase tracking-widest mb-6">
+          Choisissez votre moyen de paiement
+        </h3>
 
-      {/* Chargement */}
-      {!isReady && (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">
-            Chargement sécurisé...
-          </span>
-        </div>
-      )}
+        {/* Loading State */}
+        {!isReady && (
+          <div className="flex flex-col items-center justify-center py-10 space-y-4 border-2 border-dashed border-slate-200 rounded-2xl">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <span className="text-sm font-medium text-muted-foreground">
+              Chargement sécurisé...
+            </span>
+          </div>
+        )}
 
-      {/* Formulaire Stripe */}
-      <div className={!isReady ? "invisible h-0 overflow-hidden" : ""}>
-        <PaymentElement
-          options={{
-            layout: "accordion",
-            wallets: method?.wallets ?? { applePay: "never", googlePay: "never" },
-          }}
-          onReady={() => setIsReady(true)}
-        />
+        {/* Stripe Payment Element (Native Accordion) */}
+        <div className={!isReady ? "invisible h-0 overflow-hidden" : "min-h-[300px]"}>
+          <PaymentElement
+            options={{
+              layout: {
+                type: "accordion",
+                defaultCollapsed: true,
+                radios: true,
+                spacedAccordionItems: true
+              },
+              wallets: {
+                applePay: "auto",
+                googlePay: "auto",
+              }
+            }}
+            onReady={() => setIsReady(true)}
+          />
+        </div>
       </div>
 
       {/* Bouton payer */}
@@ -217,12 +129,12 @@ export default function CheckoutForm() {
         <Button
           type="submit"
           disabled={!stripe || !isReady || isProcessing}
-          className="w-full"
+          className="w-full h-12 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all"
           data-testid="button-pay"
         >
           {isProcessing ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
               Traitement en cours...
             </>
           ) : (

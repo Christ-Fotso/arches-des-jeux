@@ -531,7 +531,7 @@ class EmailService {
       const { error } = await this.resend.emails.send({
         from: this.fromEmail, // Doit être une adresse autorisée par Resend sur le domaine
         to: 'Larchedesjeux@gmail.com',
-        reply_to: from, // Permet de répondre directement à l'expéditeur original depuis Gmail
+        replyTo: from, // Permet de répondre directement à l'expéditeur original depuis Gmail
         subject: `[L'Arche Transfert] ${subject}`,
         html: htmlContent,
       });
